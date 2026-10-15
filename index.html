@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="robots" content="noindex">
+<title>Суфлёр</title>
+<style>
+:root { --bg:#000; --fg:#fff; --dim:#8a8a8a; --acc:#ffd23f; --ok:#3ddc84; --line:rgba(255,210,63,.35); }
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body { margin:0; background:var(--bg); color:var(--fg); font-family:-apple-system, system-ui, sans-serif; height:100%; overflow:hidden; }
+button { font:inherit; color:inherit; background:#1c1c1e; border:0; border-radius:12px; padding:10px 14px; }
+button.on { background:var(--acc); color:#000; }
+#list { position:absolute; inset:0; overflow-y:auto; padding:calc(env(safe-area-inset-top) + 12px) 16px 40px; }
+#list h1 { font-size:20px; margin:4px 0 2px; }
+#meta { color:var(--dim); font-size:13px; margin-bottom:12px; }
+.tabs { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+.item { background:#121214; border-radius:14px; padding:12px 14px; margin-bottom:10px; }
+.item .t { color:var(--dim); font-size:13px; }
+.item .h { font-size:16px; margin-top:4px; line-height:1.3; }
+.item.done { opacity:.4; }
+.item.done .t::after { content:"  ✓ записал"; color:var(--ok); }
+#msg { color:var(--dim); padding:30px 0; line-height:1.5; }
+#stage { position:absolute; inset:0; display:none; }
+#viewport { position:absolute; inset:0; overflow:hidden; }
+#roll { position:absolute; left:0; right:0; top:0; padding:0 7%; will-change:transform; }
+#roll .tag { color:var(--dim); font-size:.45em; margin-bottom:.6em; }
+#roll .txt { white-space:pre-wrap; line-height:1.38; font-weight:600; }
+#roll .end { color:var(--dim); font-size:.5em; padding:1em 0 60vh; }
+.mirror #roll { transform-origin:center; }
+#marker { position:absolute; left:0; right:0; height:0; border-top:2px solid var(--line); pointer-events:none; }
+#count { position:absolute; inset:0; display:none; align-items:center; justify-content:center; font-size:30vw; font-weight:700; color:var(--acc); pointer-events:none; }
+#bar { position:absolute; left:0; right:0; bottom:0; padding:10px 10px calc(env(safe-area-inset-bottom) + 10px); background:linear-gradient(transparent, rgba(0,0,0,.92) 30%); display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+#bar button { min-width:54px; }
+#bar .big { background:var(--acc); color:#000; font-weight:700; min-width:90px; }
+.playing #bar { display:none; }
+#hud { position:absolute; top:calc(env(safe-area-inset-top) + 8px); left:50%; transform:translateX(-50%); background:rgba(40,40,40,.92); padding:8px 14px; border-radius:10px; font-size:15px; display:none; z-index:5; white-space:nowrap; }
+#keytest { position:absolute; inset:0; background:#000; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px; gap:16px; z-index:6; }
+#keytest .k { font-size:34px; color:var(--acc); min-height:44px; }
+#keytest .log { color:var(--dim); font-size:14px; max-height:40vh; overflow:auto; }
+</style>
+</head>
+<body>
+<div id="list">
+  <h1>Суфлёр</h1>
+  <div id="meta"></div>
+  <div class="tabs">
+    <button data-f="all">Все</button><button data-f="ru">РУ</button><button data-f="en">США</button>
+    <button id="reload">↻ Обновить</button><button id="kt">🎛 Тест пульта</button>
+  </div>
+  <div id="items"></div>
+  <div id="msg"></div>
+</div>
+
+<div id="stage">
+  <div id="viewport"><div id="roll"></div><div id="marker"></div></div>
+  <div id="count"></div>
+  <div id="bar">
+    <button id="b-list">☰</button>
+    <button id="b-top">⟲</button>
+    <button id="b-play" class="big">▶ Старт</button>
+    <button id="b-done">✓ Записал →</button>
+    <button id="b-slow">🐢</button><button id="b-fast">🐇</button>
+    <button id="b-small">A−</button><button id="b-big">A+</button>
+    <button id="b-mirror">⇋ Зеркало</button>
+  </div>
+</div>
+<div id="hud"></div>
+<div id="keytest"><div>Нажимай кнопки на пульте по очереди.<br>Если ничего не появляется, пульт шлёт «громкость», и Safari его не видит.</div>
+  <div class="k">…</div><div class="log"></div><button id="kt-close">Готово</button></div>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("tp_" + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("tp_" + k, JSON.stringify(v)); } catch (e) {} },
+};
+let S = { font: store.get("font", 44), speed: store.get("speed", 55), mirror: store.get("mirror", true), filter: store.get("filter", "all") };
+let done = new Set(store.get("done", []));
+let items = [], cur = -1, playing = false, pos = 0, last = 0, raf = 0, lock = null;
+
+const key = new URLSearchParams(location.hash.slice(1)).get("k");
+if (key) store.set("key", key);
+const K = key || store.get("key", null);
+
+function b64(s) { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); }
+
+async function load(force) {
+  $("#msg").textContent = "Загружаю…";
+  if (!K) { $("#msg").textContent = "Нет ключа. Открой ссылку на суфлёр из Telegram-бота."; return; }
+  try {
+    const r = await fetch("data.json?t=" + Date.now(), { cache: "no-store" });
+    const d = await r.json();
+    const ck = await crypto.subtle.importKey("raw", b64(K), "AES-GCM", false, ["decrypt"]);
+    const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64(d.iv) }, ck, b64(d.ct));
+    const data = JSON.parse(new TextDecoder().decode(pt));
+    items = data.items;
+    const ids = new Set(items.map(i => i.id));
+    done = new Set([...done].filter(i => ids.has(i)));
+    store.set("done", [...done]);
+    $("#meta").textContent = "Обновлено " + data.updated + " · сценариев " + items.length;
+    $("#msg").textContent = items.length ? "" : "Апрувнутых сценариев для записи нет.";
+    renderList();
+  } catch (e) {
+    $("#msg").textContent = "Не получилось загрузить или расшифровать. Проверь интернет и что ссылка из бота целиком. (" + e.message + ")";
+  }
+}
+
+function visible() {
+  const v = items.filter(i => S.filter === "all" || i.lang === S.filter);
+  return v.filter(i => !done.has(i.id)).concat(v.filter(i => done.has(i.id)));
+}
+
+function renderList() {
+  document.querySelectorAll(".tabs [data-f]").forEach(b => b.classList.toggle("on", b.dataset.f === S.filter));
+  const box = $("#items"); box.innerHTML = "";
+  visible().forEach(it => {
+    const el = document.createElement("div");
+    el.className = "item" + (done.has(it.id) ? " done" : "");
+    const t = document.createElement("div"); t.className = "t";
+    t.textContent = (it.lang === "en" ? "🇺🇸 " : "🇰🇿 ") + it.tag + " · " + it.pillar + (it.status === "Записан" ? " · в таблице: записан" : "");
+    const h = document.createElement("div"); h.className = "h"; h.textContent = it.text.split("\n")[0];
+    el.append(t, h);
+    el.onclick = () => open(items.indexOf(it));
+    box.append(el);
+  });
+}
+
+function hud(t) { const h = $("#hud"); h.textContent = t; h.style.display = "block"; clearTimeout(hud.t); hud.t = setTimeout(() => h.style.display = "none", 1400); }
+
+function applyView() {
+  const roll = $("#roll");
+  roll.style.fontSize = S.font + "px";
+  $("#b-mirror").classList.toggle("on", S.mirror);
+  $("#marker").style.top = (innerHeight * 0.3) + "px";
+  draw();
+}
+function draw() { $("#roll").style.transform = "translateY(" + (-pos + innerHeight * 0.3) + "px)" + (S.mirror ? " scaleX(-1)" : ""); }
+
+function open(i) {
+  if (i < 0 || i >= items.length) return;
+  stop(); cur = i; pos = 0;
+  const it = items[i], roll = $("#roll");
+  roll.innerHTML = "";
+  const tg = document.createElement("div"); tg.className = "tag"; tg.textContent = it.tag + " · " + it.pillar;
+  const tx = document.createElement("div"); tx.className = "txt"; tx.textContent = it.text;
+  const en = document.createElement("div"); en.className = "end"; en.textContent = "· конец ·";
+  roll.append(tg, tx, en);
+  $("#list").style.display = "none"; $("#stage").style.display = "block";
+  applyView(); wake();
+}
+function toList() { stop(); $("#stage").style.display = "none"; $("#list").style.display = "block"; renderList(); }
+
+function maxPos() { return Math.max(0, $("#roll").scrollHeight - innerHeight * 0.9); }
+function tick(t) {
+  if (!playing) return;
+  if (last) pos = Math.min(maxPos(), pos + S.speed * (t - last) / 1000);
+  last = t; draw();
+  if (pos >= maxPos()) { stop(); return; }
+  raf = requestAnimationFrame(tick);
+}
+let counting = false;
+function start() {
+  if (playing || counting) return;
+  counting = true; let n = 3; const c = $("#count"); c.style.display = "flex"; c.textContent = n;
+  const iv = setInterval(() => {
+    n--; if (n > 0) { c.textContent = n; return; }
+    clearInterval(iv); c.style.display = "none"; counting = false;
+    playing = true; last = 0; document.body.classList.add("playing"); $("#b-play").textContent = "❚❚ Пауза";
+    raf = requestAnimationFrame(tick);
+  }, 700);
+}
+function stop() { playing = false; cancelAnimationFrame(raf); document.body.classList.remove("playing"); $("#b-play").textContent = "▶ Старт"; }
+function toggle() { playing ? stop() : start(); }
+function top() { stop(); pos = 0; draw(); hud("⟲ С начала"); }
+function speed(d) { S.speed = Math.max(10, Math.min(250, S.speed + d)); store.set("speed", S.speed); hud("Скорость " + S.speed); }
+function font(d) { S.font = Math.max(24, Math.min(110, S.font + d)); store.set("font", S.font); applyView(); hud("Шрифт " + S.font); }
+function nudge(d) { pos = Math.max(0, Math.min(maxPos(), pos + d)); draw(); }
+function markDone() {
+  if (cur < 0) return;
+  done.add(items[cur].id); store.set("done", [...done]);
+  const next = visible().find(i => !done.has(i.id));
+  hud("✓ " + items[cur].tag);
+  next ? open(items.indexOf(next)) : toList();
+}
+async function wake() { try { if ("wakeLock" in navigator && !lock) { lock = await navigator.wakeLock.request("screen"); lock.onrelease = () => lock = null; } } catch (e) {} }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") wake(); });
+
+// TP2 remote = Bluetooth keyboard. Unknown keys show their name, so a new remote can be mapped in one look.
+const ktLog = [];
+document.addEventListener("keydown", e => {
+  const k = e.key === " " ? "Space" : e.key;
+  if ($("#keytest").style.display === "flex") {
+    e.preventDefault(); $("#keytest .k").textContent = k + "  (" + e.code + ")";
+    ktLog.unshift(k + " / " + e.code); $("#keytest .log").textContent = ktLog.slice(0, 12).join("\n"); return;
+  }
+  const inStage = $("#stage").style.display === "block";
+  const map = {
+    Space: toggle, Enter: toggle, MediaPlayPause: toggle, k: toggle,
+    ArrowDown: () => playing ? speed(10) : nudge(60), PageDown: () => playing ? speed(10) : nudge(60),
+    ArrowUp: () => playing ? speed(-10) : nudge(-60), PageUp: () => playing ? speed(-10) : nudge(-60),
+    ArrowRight: markDone, n: markDone, MediaTrackNext: markDone,
+    ArrowLeft: top, p: top, MediaTrackPrevious: top,
+    Escape: toList,
+  };
+  if (!inStage) {
+    if (["Space", "Enter", "ArrowRight", "MediaPlayPause"].includes(k)) { const n = visible().find(i => !done.has(i.id)); if (n) { e.preventDefault(); open(items.indexOf(n)); } }
+    return;
+  }
+  if (map[k]) { e.preventDefault(); map[k](); } else hud("Кнопка: " + k);
+});
+
+$("#viewport").addEventListener("click", toggle);
+$("#b-play").onclick = toggle; $("#b-top").onclick = top; $("#b-done").onclick = markDone; $("#b-list").onclick = toList;
+$("#b-slow").onclick = () => speed(-10); $("#b-fast").onclick = () => speed(10);
+$("#b-small").onclick = () => font(-4); $("#b-big").onclick = () => font(4);
+$("#b-mirror").onclick = () => { S.mirror = !S.mirror; store.set("mirror", S.mirror); applyView(); };
+document.querySelectorAll(".tabs [data-f]").forEach(b => b.onclick = () => { S.filter = b.dataset.f; store.set("filter", S.filter); renderList(); });
+$("#reload").onclick = () => load(true);
+$("#kt").onclick = () => { $("#keytest").style.display = "flex"; };
+$("#kt-close").onclick = () => { $("#keytest").style.display = "none"; };
+addEventListener("resize", applyView);
+load();
+})();
+</script>
+</body>
+</html>
