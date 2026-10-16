@@ -41,11 +41,11 @@ button.on { background:var(--acc); color:#000; }
 .mirror #roll { transform-origin:center; }
 #marker { position:absolute; left:0; right:0; height:0; border-top:2px solid var(--line); pointer-events:none; }
 #count { position:absolute; inset:0; display:none; align-items:center; justify-content:center; font-size:30vw; font-weight:700; color:var(--acc); pointer-events:none; }
-#bar { position:absolute; left:0; right:0; bottom:0; padding:10px 10px calc(env(safe-area-inset-bottom) + 10px); background:linear-gradient(transparent, rgba(0,0,0,.92) 30%); display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
-#bar button { min-width:54px; }
+#bar { position:absolute; left:0; right:0; bottom:0; padding:10px 6px calc(env(safe-area-inset-bottom) + 10px); background:linear-gradient(transparent, rgba(0,0,0,.92) 30%); display:flex; flex-wrap:nowrap; gap:4px; justify-content:center; }
+#bar button { flex:1 1 0; min-width:0; padding:12px 0; font-size:17px; border-radius:10px; white-space:nowrap; }
 #back { position:absolute; top:calc(env(safe-area-inset-top) + 10px); left:12px; z-index:4; background:rgba(28,28,30,.85); font-weight:600; }
 .playing #back { opacity:.25; }
-#bar .big { background:var(--acc); color:#000; font-weight:700; min-width:90px; }
+#bar .big { background:var(--acc); color:#000; font-weight:700; flex:1.6 1 0; }
 .playing #bar { display:none; }
 #hud { position:absolute; top:calc(env(safe-area-inset-top) + 8px); left:50%; transform:translateX(-50%); background:rgba(40,40,40,.92); padding:8px 14px; border-radius:10px; font-size:15px; display:none; z-index:5; white-space:nowrap; }
 #keytest { position:absolute; inset:0; background:#000; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px; gap:16px; z-index:6; }
@@ -71,15 +71,15 @@ button.on { background:var(--acc); color:#000; }
   <div id="viewport"><div id="roll"></div><div id="marker"></div></div>
   <div id="count"></div>
   <div id="bar">
-    <button id="b-list">← Назад</button>
+    <button id="b-list">←</button>
     <button id="b-top">⟲</button>
-    <button id="b-play" class="big">▶ Старт</button>
+    <button id="b-play" class="big">▶</button>
     <button id="b-check">✓</button>
-    <button id="b-done">✓ Записал →</button>
+    <button id="b-done">✓→</button>
     <button id="b-slow">🐢</button><button id="b-fast">🐇</button>
     <button id="b-small">A−</button><button id="b-big">A+</button>
-    <button id="b-mirror">⇋ Зеркало</button>
-    <button id="b-copy">📋 Копировать текст</button>
+    <button id="b-mirror">⇋</button>
+    <button id="b-copy">📋</button>
   </div>
 </div>
 <div id="hud"></div>
@@ -221,10 +221,10 @@ let counting = false;
 function start() {
   // no 3-2-1 countdown (Alex 16.10): the text moves the moment he presses start
   if (playing) return;
-  playing = true; last = 0; document.body.classList.add("playing"); $("#b-play").textContent = "❚❚ Пауза"; report();
+  playing = true; last = 0; document.body.classList.add("playing"); $("#b-play").textContent = "❚❚"; report();
   raf = requestAnimationFrame(tick);
 }
-function stop() { const was = playing; playing = false; cancelAnimationFrame(raf); document.body.classList.remove("playing"); $("#b-play").textContent = "▶ Старт"; if (was) report(); }
+function stop() { const was = playing; playing = false; cancelAnimationFrame(raf); document.body.classList.remove("playing"); $("#b-play").textContent = "▶"; if (was) report(); }
 function toggle() { playing ? stop() : start(); }
 function top() { stop(); pos = 0; draw(); hud("⟲ С начала"); }
 function speed(d) { S.speed = Math.max(10, Math.min(250, S.speed + d)); store.set("speed", S.speed); hud("Скорость " + S.speed); }
