@@ -317,8 +317,9 @@ function remote(cmd) {
   es.onopen = () => report();
 })();
 // PS5 DualSense / any gamepad (Alex 16.10: «у меня есть геймпад плейстейшн 5»). Standard mapping:
-// ✕ start/pause · ○ back 2 lines · △ recorded → next · □ tick recorded · R1/L1 faster/slower · ↑/↓ font · Options from the top
-const PAD = { 0: "toggle", 1: "back", 3: "done", 2: "check", 5: "faster", 4: "slower", 12: "bigger", 13: "smaller", 9: "top", 8: "list" };
+// ✕ start/pause · ○ back 2 lines · △ recorded → next · □ tick recorded · R1/L1 faster/slower · R2/L2 and ↑/↓ text bigger/smaller · Options from the top
+// R2 = zoom in (bigger text), L2 = zoom out (Alex 16.10)
+const PAD = { 0: "toggle", 1: "back", 3: "done", 2: "check", 5: "faster", 4: "slower", 7: "bigger", 6: "smaller", 12: "bigger", 13: "smaller", 9: "top", 8: "list" };
 let padPrev = [];
 function padLoop() {
   const gp = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find(g => g);
