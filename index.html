@@ -20,8 +20,17 @@ button.on { background:var(--acc); color:#000; }
 .item { background:#121214; border-radius:14px; padding:12px 14px; margin-bottom:10px; }
 .item .t { color:var(--dim); font-size:13px; }
 .item .h { font-size:16px; margin-top:4px; line-height:1.3; }
-.item.done { opacity:.4; }
+.item { display:flex; align-items:center; gap:12px; }
+.item .body { flex:1; min-width:0; }
+.item .chk { flex:none; width:44px; height:44px; border-radius:22px; border:2px solid #3a3a3c; background:transparent; padding:0;
+  font-size:22px; color:transparent; display:flex; align-items:center; justify-content:center; }
+.item.done { background:rgba(61,220,132,.16); box-shadow:inset 0 0 0 1.5px var(--ok); }
+.item.done .chk { background:var(--ok); border-color:var(--ok); color:#000; }
 .item.done .t::after { content:"  ✓ записал"; color:var(--ok); }
+.batch { display:flex; justify-content:space-between; align-items:baseline; margin:18px 2px 8px; font-size:17px; font-weight:700; }
+.batch span { color:var(--dim); font-size:13px; font-weight:400; }
+.batch.all-done span { color:var(--ok); }
+#b-check.on { background:var(--ok); color:#000; }
 #msg { color:var(--dim); padding:30px 0; line-height:1.5; }
 #stage { position:absolute; inset:0; display:none; }
 #viewport { position:absolute; inset:0; overflow:hidden; }
@@ -61,6 +70,7 @@ button.on { background:var(--acc); color:#000; }
     <button id="b-list">☰</button>
     <button id="b-top">⟲</button>
     <button id="b-play" class="big">▶ Старт</button>
+    <button id="b-check">✓</button>
     <button id="b-done">✓ Записал →</button>
     <button id="b-slow">🐢</button><button id="b-fast">🐇</button>
     <button id="b-small">A−</button><button id="b-big">A+</button>
@@ -110,21 +120,44 @@ async function load(force) {
 }
 
 function visible() {
-  const v = items.filter(i => S.filter === "all" || i.lang === S.filter);
-  return v.filter(i => !done.has(i.id)).concat(v.filter(i => done.has(i.id)));
+  // newest batch first, inside a batch RU then US by number; recorded ones stay in place and turn green
+  return items.filter(i => S.filter === "all" || i.lang === S.filter)
+    .slice().sort((a, b) => a.id.slice(0, 6) === b.id.slice(0, 6) ? (a.id < b.id ? -1 : 1) : (a.id < b.id ? 1 : -1));
+}
+
+function batchName(id) { return "Батч " + id.slice(4, 6) + "." + id.slice(2, 4); }
+
+function setDone(id, on) {
+  on ? done.add(id) : done.delete(id);
+  store.set("done", [...done]);
 }
 
 function renderList() {
   document.querySelectorAll(".tabs [data-f]").forEach(b => b.classList.toggle("on", b.dataset.f === S.filter));
   const box = $("#items"); box.innerHTML = "";
-  visible().forEach(it => {
+  const v = visible();
+  let batch = null;
+  v.forEach(it => {
+    const b = it.id.slice(0, 6);
+    if (b !== batch) {
+      batch = b;
+      const all = v.filter(x => x.id.startsWith(b)), n = all.filter(x => done.has(x.id)).length;
+      const hd = document.createElement("div");
+      hd.className = "batch" + (n === all.length ? " all-done" : "");
+      hd.innerHTML = batchName(b) + " <span>записано " + n + " из " + all.length + "</span>";
+      box.append(hd);
+    }
     const el = document.createElement("div");
     el.className = "item" + (done.has(it.id) ? " done" : "");
+    const body = document.createElement("div"); body.className = "body";
     const t = document.createElement("div"); t.className = "t";
-    t.textContent = (it.lang === "en" ? "🇺🇸 " : "🇰🇿 ") + it.tag + " · " + it.pillar + (it.status === "Записан" ? " · в таблице: записан" : "");
+    t.textContent = (it.lang === "en" ? "🇺🇸 " : "🇰🇿 ") + it.tag + " · " + it.pillar;
     const h = document.createElement("div"); h.className = "h"; h.textContent = it.text.split("\n")[0];
-    el.append(t, h);
-    el.onclick = () => open(items.indexOf(it));
+    body.append(t, h);
+    const c = document.createElement("button"); c.className = "chk"; c.textContent = "✓"; c.setAttribute("aria-label", "записан");
+    c.onclick = e => { e.stopPropagation(); setDone(it.id, !done.has(it.id)); renderList(); };
+    el.append(body, c);
+    body.onclick = () => open(items.indexOf(it));
     box.append(el);
   });
 }
@@ -149,6 +182,7 @@ function open(i) {
   const tx = document.createElement("div"); tx.className = "txt"; tx.textContent = it.text;
   const en = document.createElement("div"); en.className = "end"; en.textContent = "· конец ·";
   roll.append(tg, tx, en);
+  $("#b-check").classList.toggle("on", done.has(it.id));
   $("#list").style.display = "none"; $("#stage").style.display = "block";
   applyView(); wake();
 }
@@ -181,7 +215,7 @@ function font(d) { S.font = Math.max(24, Math.min(110, S.font + d)); store.set("
 function nudge(d) { pos = Math.max(0, Math.min(maxPos(), pos + d)); draw(); }
 function markDone() {
   if (cur < 0) return;
-  done.add(items[cur].id); store.set("done", [...done]);
+  setDone(items[cur].id, true);
   const next = visible().find(i => !done.has(i.id));
   hud("✓ " + items[cur].tag);
   next ? open(items.indexOf(next)) : toList();
@@ -214,6 +248,11 @@ document.addEventListener("keydown", e => {
 });
 
 $("#viewport").addEventListener("click", toggle);
+$("#b-check").onclick = () => { if (cur < 0) return; const id = items[cur].id; setDone(id, !done.has(id));
+  $("#b-check").classList.toggle("on", done.has(id)); hud(done.has(id) ? "✓ Записан" : "Снята отметка"); };
+// new approvals arrive by themselves: re-read the feed every minute while the list is open and when the app comes back
+setInterval(() => { if ($("#stage").style.display !== "block") load(); }, 60000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && $("#stage").style.display !== "block") load(); });
 $("#b-play").onclick = toggle; $("#b-top").onclick = top; $("#b-done").onclick = markDone; $("#b-list").onclick = toList;
 $("#b-slow").onclick = () => speed(-10); $("#b-fast").onclick = () => speed(10);
 $("#b-small").onclick = () => font(-4); $("#b-big").onclick = () => font(4);
