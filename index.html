@@ -61,6 +61,7 @@ button.on { background:var(--acc); color:#000; }
     <button data-f="all">Все</button><button data-f="ru">РУ</button><button data-f="en">США</button>
     <button id="reload">↻ Обновить</button><button id="kt">🎛 Тест пульта</button>
   </div>
+  <div class="tabs" id="days"></div>
   <div id="items"></div>
   <div id="msg"></div>
 </div>
@@ -91,8 +92,9 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem("tp_" + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem("tp_" + k, JSON.stringify(v)); } catch (e) {} },
 };
-let S = { font: store.get("font", 44), speed: store.get("speed", 55), mirror: store.get("mirror", true), filter: store.get("filter", "all") };
+let S = { font: store.get("font", 44), speed: store.get("speed", 55), mirror: store.get("mirror", true), filter: store.get("filter", "all"), day: store.get("day", "all") };
 let done = new Set(store.get("done", []));
+let undone = new Set(store.get("undone", []));  // «Записан» in the sheet = recorded, unless he unticked it here
 let items = [], cur = -1, playing = false, pos = 0, last = 0, raf = 0, lock = null;
 
 const key = new URLSearchParams(location.hash.slice(1)).get("k");
@@ -113,6 +115,7 @@ async function load(force) {
     items = data.items;
     const ids = new Set(items.map(i => i.id));
     done = new Set([...done].filter(i => ids.has(i)));
+    items.forEach(i => { if (i.status === "Записан" && !undone.has(i.id)) done.add(i.id); });
     store.set("done", [...done]);
     $("#meta").textContent = "Обновлено " + data.updated + " · сценариев " + items.length;
     $("#msg").textContent = items.length ? "" : "Апрувнутых сценариев для записи нет.";
@@ -124,18 +127,31 @@ async function load(force) {
 
 function visible() {
   // newest batch first, inside a batch RU then US by number; recorded ones stay in place and turn green
-  return items.filter(i => S.filter === "all" || i.lang === S.filter)
+  return items.filter(i => (S.filter === "all" || i.lang === S.filter) && (S.day === "all" || i.id.startsWith(S.day)))
     .slice().sort((a, b) => a.id.slice(0, 6) === b.id.slice(0, 6) ? (a.id < b.id ? -1 : 1) : (a.id < b.id ? 1 : -1));
 }
 
 function batchName(id) { return "Батч " + id.slice(4, 6) + "." + id.slice(2, 4); }
 
 function setDone(id, on) {
-  on ? done.add(id) : done.delete(id);
-  store.set("done", [...done]);
+  on ? (done.add(id), undone.delete(id)) : (done.delete(id), undone.add(id));
+  store.set("done", [...done]); store.set("undone", [...undone]);
+}
+
+function renderDays() {
+  // one chip per batch day, newest first (Alex 16.10: «фильтрация по дням батчей»)
+  const days = [...new Set(items.map(i => i.id.slice(0, 6)))].sort().reverse();
+  if (S.day !== "all" && !days.includes(S.day)) S.day = "all";
+  const box = $("#days"); box.innerHTML = "";
+  [["all", "Все дни"], ...days.map(d => [d, d.slice(4, 6) + "." + d.slice(2, 4)])].forEach(([d, label]) => {
+    const b = document.createElement("button"); b.textContent = label; b.classList.toggle("on", S.day === d);
+    b.onclick = () => { S.day = d; store.set("day", d); renderList(); };
+    box.append(b);
+  });
 }
 
 function renderList() {
+  renderDays();
   document.querySelectorAll(".tabs [data-f]").forEach(b => b.classList.toggle("on", b.dataset.f === S.filter));
   const box = $("#items"); box.innerHTML = "";
   const v = visible();
