@@ -255,10 +255,11 @@ document.addEventListener("keydown", e => {
   const inStage = $("#stage").style.display === "block";
   const map = {
     Space: toggle, Enter: toggle, MediaPlayPause: toggle, k: toggle,
-    ArrowDown: () => playing ? speed(10) : nudge(60), PageDown: () => playing ? speed(10) : nudge(60),
-    ArrowUp: () => playing ? speed(-10) : nudge(-60), PageUp: () => playing ? speed(-10) : nudge(-60),
-    ArrowRight: markDone, n: markDone, MediaTrackNext: markDone,
-    ArrowLeft: top, p: top, MediaTrackPrevious: top,
+    // presenter clicker (Logitech R500s etc., 16.10): «вперёд» = start/pause, «назад» = pause and back ~2 lines for a retake
+    PageDown: toggle, ArrowRight: toggle,
+    PageUp: () => { stop(); nudge(-110); hud("↑ Назад на 2 строки"); }, ArrowLeft: () => { stop(); nudge(-110); hud("↑ Назад на 2 строки"); },
+    ArrowDown: () => playing ? speed(10) : nudge(60), ArrowUp: () => playing ? speed(-10) : nudge(-60),
+    n: markDone, MediaTrackNext: markDone, p: top, MediaTrackPrevious: top,
     Escape: toList,
   };
   if (!inStage) {
