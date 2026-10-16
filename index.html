@@ -91,6 +91,15 @@ button.on { background:var(--acc); color:#000; }
 <script>
 (() => {
 const $ = s => document.querySelector(s);
+const VERSION = "16.10-1325";
+// always the newest page (Alex 16.10: the iPhone kept an old copy): compare with the published file, reload if it differs
+fetch("index.html?t=" + Date.now(), { cache: "no-store" }).then(r => r.text()).then(t => {
+  const m = t.match(/const VERSION = "([^"]+)"/);
+  if (m && m[1] !== VERSION && !sessionStorage.getItem("tp_upd_" + m[1])) {
+    sessionStorage.setItem("tp_upd_" + m[1], "1");
+    location.replace(location.pathname + "?v=" + Date.now() + location.hash);
+  }
+}).catch(() => {});
 const store = {
   get(k, d) { try { const v = localStorage.getItem("tp_" + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem("tp_" + k, JSON.stringify(v)); } catch (e) {} },
@@ -120,7 +129,7 @@ async function load(force) {
     done = new Set([...done].filter(i => ids.has(i)));
     items.forEach(i => { if (i.status === "Записан" && !undone.has(i.id)) done.add(i.id); });
     store.set("done", [...done]);
-    $("#meta").textContent = "Обновлено " + data.updated + " · сценариев " + items.length;
+    $("#meta").textContent = "Обновлено " + data.updated + " · сценариев " + items.length + " · версия " + VERSION;
     $("#msg").textContent = items.length ? "" : "Апрувнутых сценариев для записи нет.";
     renderList();
   } catch (e) {
