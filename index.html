@@ -79,6 +79,7 @@ button.on { background:var(--acc); color:#000; }
     <button id="b-slow">🐢</button><button id="b-fast">🐇</button>
     <button id="b-small">A−</button><button id="b-big">A+</button>
     <button id="b-mirror">⇋ Зеркало</button>
+    <button id="b-copy">📋 Копировать текст</button>
   </div>
 </div>
 <div id="hud"></div>
@@ -270,6 +271,9 @@ document.addEventListener("keydown", e => {
 $("#viewport").addEventListener("click", toggle);
 $("#back").onclick = e => { e.stopPropagation(); history.state && history.state.stage ? history.back() : toList(); };
 addEventListener("popstate", () => { if ($("#stage").style.display === "block") toList(); });
+// the FeelWorld remote pairs only inside the FEELWORLD app: copy the script and paste it there (Alex 16.10)
+$("#b-copy").onclick = async () => { if (cur < 0) return; try { await navigator.clipboard.writeText(items[cur].text); hud("Скопировано, вставь в FEELWORLD"); }
+  catch (e) { hud("Не скопировалось: " + e.message); } };
 $("#b-check").onclick = () => { if (cur < 0) return; const id = items[cur].id; setDone(id, !done.has(id));
   $("#b-check").classList.toggle("on", done.has(id)); hud(done.has(id) ? "✓ Записан" : "Снята отметка"); };
 // new approvals arrive by themselves: re-read the feed every minute while the list is open and when the app comes back
