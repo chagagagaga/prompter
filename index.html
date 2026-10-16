@@ -91,7 +91,7 @@ button.on { background:var(--acc); color:#000; }
 <script>
 (() => {
 const $ = s => document.querySelector(s);
-const VERSION = "16.10-1325";
+const VERSION = "16.10-1330";
 // always the newest page (Alex 16.10: the iPhone kept an old copy): compare with the published file, reload if it differs
 fetch("index.html?t=" + Date.now(), { cache: "no-store" }).then(r => r.text()).then(t => {
   const m = t.match(/const VERSION = "([^"]+)"/);
@@ -284,8 +284,7 @@ $("#back").onclick = e => { e.stopPropagation(); history.state && history.state.
 // a Back right after ○ is swallowed, ○ keeps its own action; a finger swipe-back still returns to the list
 addEventListener("popstate", () => {
   if ($("#stage").style.display !== "block") return;
-  if (performance.now() - (window.__circleAt || -1e9) < 700) { history.pushState({ stage: 1 }, ""); return; }
-  toList();
+  toList();  // ○ on the gamepad = back to the list (Alex 16.10), iOS sends it as Back too
 });
 // the FeelWorld remote pairs only inside the FEELWORLD app: copy the script and paste it there (Alex 16.10)
 $("#b-copy").onclick = async () => { if (cur < 0) return; try { await navigator.clipboard.writeText(items[cur].text); hud("Скопировано, вставь в FEELWORLD"); }
@@ -333,13 +332,13 @@ function remote(cmd) {
   es.onopen = () => report();
 })();
 // PS5 DualSense / any gamepad (Alex 16.10: «у меня есть геймпад плейстейшн 5»). Standard mapping:
-// ✕ start/pause · ○ back 2 lines · △ recorded → next · □ tick recorded · R1/L1 faster/slower · R2/L2 text bigger/smaller · ↑/↓ and sticks scroll · Options from the top
+// ✕ start/pause · ○ back to the list · △ recorded → next · □ tick recorded · R1/L1 faster/slower · R2/L2 text bigger/smaller · ↑/↓ and sticks scroll · Options from the top
 // R2 = zoom in (bigger text), L2 = zoom out (Alex 16.10)
 // ↑/↓ scroll the text a little (Alex 16.10), sticks scroll smoothly (see padLoop)
-const PAD = { 0: "toggle", 1: "back", 3: "done", 2: "check", 5: "faster", 4: "slower", 7: "bigger", 6: "smaller", 12: "up", 13: "down", 9: "top", 8: "list" };
+const PAD = { 0: "toggle", 1: "list", 3: "done", 2: "check", 5: "faster", 4: "slower", 7: "bigger", 6: "smaller", 12: "up", 13: "down", 9: "top", 8: "list" };
 let padPrev = [];
 // list screen (Alex 16.10: «меню листать тоже геймпадом»): ↑/↓ pick a script, ←/→ or L1/R1 switch day, ✕ open and start,
-// ○ open without starting, □ tick recorded, R2/L2 language filter
+// □ tick recorded, R2/L2 language filter
 let sel = -1;
 function listMove(d) {
   const v = visible(); if (!v.length) return;
@@ -358,7 +357,7 @@ const LISTPAD = {
   12: () => listMove(-1), 13: () => listMove(1), 14: () => dayMove(-1), 15: () => dayMove(1), 4: () => dayMove(-1), 5: () => dayMove(1),
   6: () => langMove(-1), 7: () => langMove(1),
   0: () => { const it = selItem() || visible().find(i => !done.has(i.id)); if (it) { open(items.indexOf(it)); start(); } },
-  1: () => { const it = selItem(); if (it) open(items.indexOf(it)); },
+  1: () => {},  // ○ in the list does nothing (iOS would also treat it as Back)
   2: () => { const it = selItem(); if (it) { setDone(it.id, !done.has(it.id)); renderList(); } },
 };
 function padLoop() {
