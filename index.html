@@ -219,14 +219,10 @@ function tick(t) {
 }
 let counting = false;
 function start() {
-  if (playing || counting) return;
-  counting = true; let n = 3; const c = $("#count"); c.style.display = "flex"; c.textContent = n;
-  const iv = setInterval(() => {
-    n--; if (n > 0) { c.textContent = n; return; }
-    clearInterval(iv); c.style.display = "none"; counting = false;
-    playing = true; last = 0; document.body.classList.add("playing"); $("#b-play").textContent = "❚❚ Пауза"; report();
-    raf = requestAnimationFrame(tick);
-  }, 700);
+  // no 3-2-1 countdown (Alex 16.10): the text moves the moment he presses start
+  if (playing) return;
+  playing = true; last = 0; document.body.classList.add("playing"); $("#b-play").textContent = "❚❚ Пауза"; report();
+  raf = requestAnimationFrame(tick);
 }
 function stop() { const was = playing; playing = false; cancelAnimationFrame(raf); document.body.classList.remove("playing"); $("#b-play").textContent = "▶ Старт"; if (was) report(); }
 function toggle() { playing ? stop() : start(); }
