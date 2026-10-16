@@ -43,6 +43,8 @@ button.on { background:var(--acc); color:#000; }
 #count { position:absolute; inset:0; display:none; align-items:center; justify-content:center; font-size:30vw; font-weight:700; color:var(--acc); pointer-events:none; }
 #bar { position:absolute; left:0; right:0; bottom:0; padding:10px 10px calc(env(safe-area-inset-bottom) + 10px); background:linear-gradient(transparent, rgba(0,0,0,.92) 30%); display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
 #bar button { min-width:54px; }
+#back { position:absolute; top:calc(env(safe-area-inset-top) + 10px); left:12px; z-index:4; background:rgba(28,28,30,.85); font-weight:600; }
+.playing #back { opacity:.25; }
 #bar .big { background:var(--acc); color:#000; font-weight:700; min-width:90px; }
 .playing #bar { display:none; }
 #hud { position:absolute; top:calc(env(safe-area-inset-top) + 8px); left:50%; transform:translateX(-50%); background:rgba(40,40,40,.92); padding:8px 14px; border-radius:10px; font-size:15px; display:none; z-index:5; white-space:nowrap; }
@@ -64,10 +66,11 @@ button.on { background:var(--acc); color:#000; }
 </div>
 
 <div id="stage">
+  <button id="back">← Назад</button>
   <div id="viewport"><div id="roll"></div><div id="marker"></div></div>
   <div id="count"></div>
   <div id="bar">
-    <button id="b-list">☰</button>
+    <button id="b-list">← Назад</button>
     <button id="b-top">⟲</button>
     <button id="b-play" class="big">▶ Старт</button>
     <button id="b-check">✓</button>
@@ -183,6 +186,7 @@ function open(i) {
   const en = document.createElement("div"); en.className = "end"; en.textContent = "· конец ·";
   roll.append(tg, tx, en);
   $("#b-check").classList.toggle("on", done.has(it.id));
+  if ($("#stage").style.display !== "block") history.pushState({ stage: 1 }, "");  // iPhone swipe-back returns to the list
   $("#list").style.display = "none"; $("#stage").style.display = "block";
   applyView(); wake();
 }
@@ -248,12 +252,14 @@ document.addEventListener("keydown", e => {
 });
 
 $("#viewport").addEventListener("click", toggle);
+$("#back").onclick = e => { e.stopPropagation(); history.state && history.state.stage ? history.back() : toList(); };
+addEventListener("popstate", () => { if ($("#stage").style.display === "block") toList(); });
 $("#b-check").onclick = () => { if (cur < 0) return; const id = items[cur].id; setDone(id, !done.has(id));
   $("#b-check").classList.toggle("on", done.has(id)); hud(done.has(id) ? "✓ Записан" : "Снята отметка"); };
 // new approvals arrive by themselves: re-read the feed every minute while the list is open and when the app comes back
 setInterval(() => { if ($("#stage").style.display !== "block") load(); }, 60000);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && $("#stage").style.display !== "block") load(); });
-$("#b-play").onclick = toggle; $("#b-top").onclick = top; $("#b-done").onclick = markDone; $("#b-list").onclick = toList;
+$("#b-play").onclick = toggle; $("#b-top").onclick = top; $("#b-done").onclick = markDone; $("#b-list").onclick = () => $("#back").click();
 $("#b-slow").onclick = () => speed(-10); $("#b-fast").onclick = () => speed(10);
 $("#b-small").onclick = () => font(-4); $("#b-big").onclick = () => font(4);
 $("#b-mirror").onclick = () => { S.mirror = !S.mirror; store.set("mirror", S.mirror); applyView(); };
