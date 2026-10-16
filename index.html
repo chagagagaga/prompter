@@ -59,7 +59,7 @@ button.on { background:var(--acc); color:#000; }
   <div id="meta"></div>
   <div class="tabs">
     <button data-f="all">Все</button><button data-f="ru">РУ</button><button data-f="en">США</button>
-    <button id="reload">↻ Обновить</button><button id="kt">🎛 Тест пульта</button>
+    <button id="reload">↻ Обновить</button><button id="kt">🎛 Тест пульта</button><button id="exp">⬇ Файл для FEELWORLD</button>
   </div>
   <div class="tabs" id="days"></div>
   <div id="items"></div>
@@ -274,6 +274,18 @@ addEventListener("popstate", () => { if ($("#stage").style.display === "block") 
 // the FeelWorld remote pairs only inside the FEELWORLD app: copy the script and paste it there (Alex 16.10)
 $("#b-copy").onclick = async () => { if (cur < 0) return; try { await navigator.clipboard.writeText(items[cur].text); hud("Скопировано, вставь в FEELWORLD"); }
   catch (e) { hud("Не скопировалось: " + e.message); } };
+// one .txt with every script still to shoot under the current day/language filter (Alex 16.10: «сразу все загрузить»)
+$("#exp").onclick = async () => {
+  const v = visible().filter(i => !done.has(i.id));
+  if (!v.length) { hud("Нечего выгружать: всё записано"); return; }
+  const txt = v.map(i => i.tag + "\n\n" + i.text.trim()).join("\n\n\n=====\n\n\n") + "\n";
+  const name = "scripts_" + (S.day === "all" ? "all" : S.day) + (S.filter === "all" ? "" : "_" + S.filter) + ".txt";
+  const file = new File([txt], name, { type: "text/plain" });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+  } catch (e) { if (e.name === "AbortError") return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; a.click();
+};
 $("#b-check").onclick = () => { if (cur < 0) return; const id = items[cur].id; setDone(id, !done.has(id));
   $("#b-check").classList.toggle("on", done.has(id)); hud(done.has(id) ? "✓ Записан" : "Снята отметка"); };
 // new approvals arrive by themselves: re-read the feed every minute while the list is open and when the app comes back
