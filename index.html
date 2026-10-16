@@ -224,11 +224,11 @@ function start() {
   const iv = setInterval(() => {
     n--; if (n > 0) { c.textContent = n; return; }
     clearInterval(iv); c.style.display = "none"; counting = false;
-    playing = true; last = 0; document.body.classList.add("playing"); $("#b-play").textContent = "❚❚ Пауза";
+    playing = true; last = 0; document.body.classList.add("playing"); $("#b-play").textContent = "❚❚ Пауза"; report();
     raf = requestAnimationFrame(tick);
   }, 700);
 }
-function stop() { playing = false; cancelAnimationFrame(raf); document.body.classList.remove("playing"); $("#b-play").textContent = "▶ Старт"; }
+function stop() { const was = playing; playing = false; cancelAnimationFrame(raf); document.body.classList.remove("playing"); $("#b-play").textContent = "▶ Старт"; if (was) report(); }
 function toggle() { playing ? stop() : start(); }
 function top() { stop(); pos = 0; draw(); hud("⟲ С начала"); }
 function speed(d) { S.speed = Math.max(10, Math.min(250, S.speed + d)); store.set("speed", S.speed); hud("Скорость " + S.speed); }
@@ -287,6 +287,49 @@ $("#exp").onclick = async () => {
   } catch (e) { if (e.name === "AbortError") return; }
   const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; a.click();
 };
+// phone remote (Alex 16.10: the FeelWorld remote pairs only with its own app): his own iPhone opens remote.html with the
+// same key; commands travel over ntfy.sh on a secret topic derived from the key (commands only, never the scripts)
+async function topic() { const h = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(K + ":remote")));
+  return "tp-" + [...h.slice(0, 12)].map(b => b.toString(16).padStart(2, "0")).join(""); }
+let T = null;
+function report() {
+  if (!T) return;
+  const it = cur >= 0 && $("#stage").style.display === "block" ? items[cur] : null;
+  fetch("https://ntfy.sh/" + T + "-s", { method: "POST", body: JSON.stringify({ tag: it ? it.tag : "", text: it ? it.text.split("\n")[0].slice(0, 80) : "",
+    playing, speed: S.speed, done: it ? done.has(it.id) : false }) }).catch(() => {});
+}
+function remote(cmd) {
+  const inStage = $("#stage").style.display === "block";
+  if (!inStage) {
+    if (cmd === "toggle" || cmd === "next") { const n = visible().find(i => !done.has(i.id)); if (n) { open(items.indexOf(n)); if (cmd === "toggle") start(); } }
+  } else ({
+    toggle, back: () => { stop(); nudge(-110); hud("↑ Назад на 2 строки"); }, top,
+    faster: () => speed(10), slower: () => speed(-10), bigger: () => font(4), smaller: () => font(-4),
+    done: markDone, check: () => $("#b-check").click(), list: toList,
+  }[cmd] || (() => {}))();
+  setTimeout(report, 150);
+}
+(async () => {
+  if (!K) return;
+  T = await topic();
+  const es = new EventSource("https://ntfy.sh/" + T + "/sse");
+  es.onmessage = e => { try { const m = JSON.parse(e.data); if (m.event === "message") remote(m.message.trim()); } catch (x) {} };
+  es.onopen = () => report();
+})();
+// PS5 DualSense / any gamepad (Alex 16.10: «у меня есть геймпад плейстейшн 5»). Standard mapping:
+// ✕ start/pause · ○ back 2 lines · △ recorded → next · □ tick recorded · R1/L1 faster/slower · ↑/↓ font · Options from the top
+const PAD = { 0: "toggle", 1: "back", 3: "done", 2: "check", 5: "faster", 4: "slower", 12: "bigger", 13: "smaller", 9: "top", 8: "list" };
+let padPrev = [];
+function padLoop() {
+  const gp = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find(g => g);
+  if (gp) {
+    gp.buttons.forEach((b, i) => { const on = b.pressed || b.value > 0.5; if (on && !padPrev[i] && PAD[i]) remote(PAD[i]); padPrev[i] = on; });
+    if (!padLoop.seen) { padLoop.seen = true; hud("🎮 Геймпад подключён"); }
+  }
+  requestAnimationFrame(padLoop);
+}
+addEventListener("gamepadconnected", () => hud("🎮 Геймпад подключён"));
+requestAnimationFrame(padLoop);
 $("#b-check").onclick = () => { if (cur < 0) return; const id = items[cur].id; setDone(id, !done.has(id));
   $("#b-check").classList.toggle("on", done.has(id)); hud(done.has(id) ? "✓ Записан" : "Снята отметка"); };
 // new approvals arrive by themselves: re-read the feed every minute while the list is open and when the app comes back

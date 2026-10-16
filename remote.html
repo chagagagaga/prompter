@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="robots" content="noindex">
+<title>Пульт суфлёра</title>
+<style>
+:root { --bg:#000; --fg:#fff; --dim:#8a8a8a; --acc:#ffd23f; --ok:#3ddc84; }
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none; }
+html, body { margin:0; background:var(--bg); color:var(--fg); font-family:-apple-system, system-ui, sans-serif; height:100%; }
+body { display:flex; flex-direction:column; padding:calc(env(safe-area-inset-top) + 10px) 14px calc(env(safe-area-inset-bottom) + 14px); gap:10px; }
+#st { background:#121214; border-radius:14px; padding:12px 14px; min-height:74px; }
+#st .t { color:var(--dim); font-size:13px; }
+#st .h { font-size:15px; margin-top:4px; line-height:1.3; }
+#st.live { box-shadow:inset 0 0 0 2px var(--acc); }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+button { font:inherit; color:inherit; background:#1c1c1e; border:0; border-radius:18px; padding:18px 10px; font-size:20px; font-weight:600; }
+button:active { transform:scale(.97); background:#2c2c2e; }
+#play { flex:1; min-height:200px; background:var(--acc); color:#000; font-size:34px; font-weight:800; border-radius:26px; }
+#play.on { background:#ff453a; color:#fff; }
+#done { background:var(--ok); color:#000; }
+#msg { color:var(--dim); font-size:13px; text-align:center; }
+</style>
+</head>
+<body>
+<div id="st"><div class="t">Пульт суфлёра</div><div class="h">Открой суфлёр на телефоне в TP2. Здесь появится текущий сценарий.</div></div>
+<button id="play" data-c="toggle">▶ Старт / Пауза</button>
+<div class="grid">
+  <button data-c="back">↑ Назад 2 строки</button><button data-c="top">⟲ С начала</button>
+  <button data-c="slower">🐢 Медленнее</button><button data-c="faster">🐇 Быстрее</button>
+  <button data-c="smaller">A− Шрифт</button><button data-c="bigger">A+ Шрифт</button>
+  <button data-c="check">✓ Записан</button><button id="done" data-c="done">✓ Записал →</button>
+</div>
+<div id="msg"></div>
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const store = { get(k, d) { try { const v = localStorage.getItem("tpr_" + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("tpr_" + k, JSON.stringify(v)); } catch (e) {} } };
+const key = new URLSearchParams(location.hash.slice(1)).get("k");
+if (key) store.set("key", key);
+const K = key || store.get("key", null);
+if (!K) { $("#msg").textContent = "Нет ключа. Открой ссылку на пульт из Telegram-бота."; return; }
+let T = null;
+(async () => {
+  const h = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(K + ":remote")));
+  T = "tp-" + [...h.slice(0, 12)].map(b => b.toString(16).padStart(2, "0")).join("");
+  const es = new EventSource("https://ntfy.sh/" + T + "-s/sse");
+  es.onopen = () => { $("#msg").textContent = "На связи. Команды идут на суфлёр."; };
+  es.onerror = () => { $("#msg").textContent = "Переподключаюсь… проверь интернет."; };
+  es.onmessage = e => { try { const m = JSON.parse(e.data); if (m.event !== "message") return; const s = JSON.parse(m.message);
+    $("#st .t").textContent = s.tag ? s.tag + (s.done ? " · ✓ записан" : "") + " · скорость " + s.speed : "Суфлёр: список сценариев";
+    $("#st .h").textContent = s.text || "Нажми «Старт», откроется первый незаписанный сценарий.";
+    $("#st").classList.toggle("live", !!s.playing); $("#play").classList.toggle("on", !!s.playing);
+    $("#play").textContent = s.playing ? "❚❚ Пауза" : "▶ Старт"; } catch (x) {} };
+})();
+document.querySelectorAll("[data-c]").forEach(b => b.onclick = () => {
+  if (!T) return;
+  if (navigator.vibrate) navigator.vibrate(15);
+  fetch("https://ntfy.sh/" + T, { method: "POST", body: b.dataset.c }).catch(() => { $("#msg").textContent = "Не отправилось, проверь интернет."; });
+});
+})();
+</script>
+</body>
+</html>
