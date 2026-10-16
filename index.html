@@ -91,7 +91,7 @@ button.on { background:var(--acc); color:#000; }
 <script>
 (() => {
 const $ = s => document.querySelector(s);
-const VERSION = "16.10-1330";
+const VERSION = "16.10-1335";
 // always the newest page (Alex 16.10: the iPhone kept an old copy): compare with the published file, reload if it differs
 fetch("index.html?t=" + Date.now(), { cache: "no-store" }).then(r => r.text()).then(t => {
   const m = t.match(/const VERSION = "([^"]+)"/);
@@ -319,6 +319,10 @@ function remote(cmd) {
   } else ({
     toggle, back: () => { stop(); nudge(-110); hud("↑ Назад на 2 строки"); }, top,
     up: () => nudge(-70), down: () => nudge(70),
+    // △ mirror, R3 next script, L3 previous script (Alex 16.10)
+    mirror: () => $("#b-mirror").click(),
+    next: () => { const v = visible(), k = v.indexOf(items[cur]); if (k < v.length - 1) { open(items.indexOf(v[k + 1])); hud("→ " + v[k + 1].tag); } else hud("Это последний сценарий"); },
+    prev: () => { const v = visible(), k = v.indexOf(items[cur]); if (k > 0) { open(items.indexOf(v[k - 1])); hud("← " + v[k - 1].tag); } else hud("Это первый сценарий"); },
     faster: () => speed(10), slower: () => speed(-10), bigger: () => font(4), smaller: () => font(-4),
     done: markDone, check: () => $("#b-check").click(), list: toList,
   }[cmd] || (() => {}))();
@@ -335,7 +339,7 @@ function remote(cmd) {
 // ✕ start/pause · ○ back to the list · △ recorded → next · □ tick recorded · R1/L1 faster/slower · R2/L2 text bigger/smaller · ↑/↓ and sticks scroll · Options from the top
 // R2 = zoom in (bigger text), L2 = zoom out (Alex 16.10)
 // ↑/↓ scroll the text a little (Alex 16.10), sticks scroll smoothly (see padLoop)
-const PAD = { 0: "toggle", 1: "list", 3: "done", 2: "check", 5: "faster", 4: "slower", 7: "bigger", 6: "smaller", 12: "up", 13: "down", 9: "top", 8: "list" };
+const PAD = { 0: "toggle", 1: "list", 3: "mirror", 10: "prev", 11: "next", 2: "check", 5: "faster", 4: "slower", 7: "bigger", 6: "smaller", 12: "up", 13: "down", 9: "top", 8: "list" };
 let padPrev = [];
 // list screen (Alex 16.10: «меню листать тоже геймпадом»): ↑/↓ pick a script, ←/→ or L1/R1 switch day, ✕ open and start,
 // □ tick recorded, R2/L2 language filter
