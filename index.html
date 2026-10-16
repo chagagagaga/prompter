@@ -25,6 +25,7 @@ button.on { background:var(--acc); color:#000; }
 .item .body { flex:1; min-width:0; }
 .item .chk { flex:none; width:44px; height:44px; border-radius:22px; border:2px solid #3a3a3c; background:transparent; padding:0;
   font-size:22px; color:transparent; display:flex; align-items:center; justify-content:center; }
+.item.sel { outline:3px solid var(--acc); outline-offset:2px; }
 .item.done { background:rgba(61,220,132,.16); box-shadow:inset 0 0 0 1.5px var(--ok); }
 .item.done .chk { background:var(--ok); border-color:var(--ok); color:#000; }
 .item.done .t::after { content:"  ✓ записал"; color:var(--ok); }
@@ -169,7 +170,9 @@ function renderList() {
       box.append(hd);
     }
     const el = document.createElement("div");
-    el.className = "item" + (done.has(it.id) ? " done" : "");
+    const idx = v.indexOf(it);
+    el.className = "item" + (done.has(it.id) ? " done" : "") + (idx === sel ? " sel" : "");
+    if (idx === sel) setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 0);
     const body = document.createElement("div"); body.className = "body";
     const t = document.createElement("div"); t.className = "t";
     t.textContent = (it.lang === "en" ? "🇺🇸 " : "🇰🇿 ") + it.tag + " · " + it.pillar;
@@ -268,7 +271,13 @@ document.addEventListener("keydown", e => {
 
 $("#viewport").addEventListener("click", toggle);
 $("#back").onclick = e => { e.stopPropagation(); history.state && history.state.stage ? history.back() : toList(); };
-addEventListener("popstate", () => { if ($("#stage").style.display === "block") toList(); });
+// iOS treats the gamepad's ○ as the browser's Back (Alex 16.10: «нажимаю на кружок, возвращает в главное меню»):
+// a Back right after ○ is swallowed, ○ keeps its own action; a finger swipe-back still returns to the list
+addEventListener("popstate", () => {
+  if ($("#stage").style.display !== "block") return;
+  if (performance.now() - (window.__circleAt || -1e9) < 700) { history.pushState({ stage: 1 }, ""); return; }
+  toList();
+});
 // the FeelWorld remote pairs only inside the FEELWORLD app: copy the script and paste it there (Alex 16.10)
 $("#b-copy").onclick = async () => { if (cur < 0) return; try { await navigator.clipboard.writeText(items[cur].text); hud("Скопировано, вставь в FEELWORLD"); }
   catch (e) { hud("Не скопировалось: " + e.message); } };
@@ -301,6 +310,7 @@ function remote(cmd) {
     if (cmd === "toggle" || cmd === "next") { const n = visible().find(i => !done.has(i.id)); if (n) { open(items.indexOf(n)); if (cmd === "toggle") start(); } }
   } else ({
     toggle, back: () => { stop(); nudge(-110); hud("↑ Назад на 2 строки"); }, top,
+    up: () => nudge(-70), down: () => nudge(70),
     faster: () => speed(10), slower: () => speed(-10), bigger: () => font(4), smaller: () => font(-4),
     done: markDone, check: () => $("#b-check").click(), list: toList,
   }[cmd] || (() => {}))();
@@ -314,14 +324,49 @@ function remote(cmd) {
   es.onopen = () => report();
 })();
 // PS5 DualSense / any gamepad (Alex 16.10: «у меня есть геймпад плейстейшн 5»). Standard mapping:
-// ✕ start/pause · ○ back 2 lines · △ recorded → next · □ tick recorded · R1/L1 faster/slower · R2/L2 and ↑/↓ text bigger/smaller · Options from the top
+// ✕ start/pause · ○ back 2 lines · △ recorded → next · □ tick recorded · R1/L1 faster/slower · R2/L2 text bigger/smaller · ↑/↓ and sticks scroll · Options from the top
 // R2 = zoom in (bigger text), L2 = zoom out (Alex 16.10)
-const PAD = { 0: "toggle", 1: "back", 3: "done", 2: "check", 5: "faster", 4: "slower", 7: "bigger", 6: "smaller", 12: "bigger", 13: "smaller", 9: "top", 8: "list" };
+// ↑/↓ scroll the text a little (Alex 16.10), sticks scroll smoothly (see padLoop)
+const PAD = { 0: "toggle", 1: "back", 3: "done", 2: "check", 5: "faster", 4: "slower", 7: "bigger", 6: "smaller", 12: "up", 13: "down", 9: "top", 8: "list" };
 let padPrev = [];
+// list screen (Alex 16.10: «меню листать тоже геймпадом»): ↑/↓ pick a script, ←/→ or L1/R1 switch day, ✕ open and start,
+// ○ open without starting, □ tick recorded, R2/L2 language filter
+let sel = -1;
+function listMove(d) {
+  const v = visible(); if (!v.length) return;
+  sel = Math.max(0, Math.min(v.length - 1, (sel < 0 ? (d > 0 ? -1 : v.length) : sel) + d));
+  renderList();
+}
+function dayMove(d) {
+  const days = ["all", ...[...new Set(items.map(i => i.id.slice(0, 6)))].sort().reverse()];
+  S.day = days[(days.indexOf(S.day) + d + days.length) % days.length]; store.set("day", S.day); sel = 0; renderList();
+}
+function langMove(d) {
+  const L = ["all", "ru", "en"]; S.filter = L[(L.indexOf(S.filter) + d + 3) % 3]; store.set("filter", S.filter); sel = 0; renderList();
+}
+const selItem = () => visible()[sel];
+const LISTPAD = {
+  12: () => listMove(-1), 13: () => listMove(1), 14: () => dayMove(-1), 15: () => dayMove(1), 4: () => dayMove(-1), 5: () => dayMove(1),
+  6: () => langMove(-1), 7: () => langMove(1),
+  0: () => { const it = selItem() || visible().find(i => !done.has(i.id)); if (it) { open(items.indexOf(it)); start(); } },
+  1: () => { const it = selItem(); if (it) open(items.indexOf(it)); },
+  2: () => { const it = selItem(); if (it) { setDone(it.id, !done.has(it.id)); renderList(); } },
+};
 function padLoop() {
   const gp = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find(g => g);
   if (gp) {
-    gp.buttons.forEach((b, i) => { const on = b.pressed || b.value > 0.5; if (on && !padPrev[i] && PAD[i]) remote(PAD[i]); padPrev[i] = on; });
+    const inList = $("#stage").style.display !== "block";
+    // left or right stick up/down = smooth scroll of the text, faster the further it is pushed
+    const ax = [gp.axes[1] || 0, gp.axes[3] || 0].reduce((a, b) => Math.abs(b) > Math.abs(a) ? b : a, 0);
+    const now = performance.now(), dt = Math.min(0.05, (now - (padLoop.t || now)) / 1000); padLoop.t = now;
+    if (Math.abs(ax) > 0.18) {
+      const v = Math.sign(ax) * Math.pow((Math.abs(ax) - 0.18) / 0.82, 1.6) * 900;
+      if (inList) $("#list").scrollTop += v * dt; else nudge(v * dt);
+    }
+    if (gp.buttons[1] && gp.buttons[1].pressed) window.__circleAt = performance.now();
+    gp.buttons.forEach((b, i) => { const on = b.pressed || b.value > 0.5;
+      if (on && !padPrev[i]) { if (inList && LISTPAD[i]) LISTPAD[i](); else if (!inList && PAD[i]) remote(PAD[i]); }
+      padPrev[i] = on; });
     if (!padLoop.seen) { padLoop.seen = true; hud("🎮 Геймпад подключён"); }
   }
   requestAnimationFrame(padLoop);
