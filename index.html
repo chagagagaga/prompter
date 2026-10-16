@@ -8,27 +8,27 @@
 <meta name="robots" content="noindex">
 <title>Суфлёр</title>
 <style>
-:root { --bg:#000; --fg:#fff; --dim:#8a8a8a; --acc:#ffd23f; --ok:#3ddc84; --line:rgba(255,210,63,.35); }
+:root { --bg:#fff; --fg:#000; --dim:#6b6b70; --acc:#ffd23f; --ok:#22b863; --line:rgba(200,150,0,.45); --card:#f1f1f4; --btn:#e6e6eb; }  /* light theme (Alex 16.10) */
 * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 html, body { margin:0; background:var(--bg); color:var(--fg); font-family:-apple-system, system-ui, sans-serif; height:100%; overflow:hidden; }
-button { font:inherit; color:inherit; background:#1c1c1e; border:0; border-radius:12px; padding:10px 14px; }
+button { font:inherit; color:inherit; background:var(--btn); border:0; border-radius:12px; padding:10px 14px; }
 button.on { background:var(--acc); color:#000; }
 #list { position:absolute; inset:0; overflow-y:auto; padding:calc(env(safe-area-inset-top) + 12px) max(16px, calc(env(safe-area-inset-right) + 8px)) 40px max(16px, calc(env(safe-area-inset-left) + 8px)); }
 #list h1 { font-size:20px; margin:4px 0 2px; }
 #meta { color:var(--dim); font-size:13px; margin-bottom:12px; }
 .tabs { display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap; }
 .tabs button { padding:6px 10px; font-size:14px; border-radius:10px; }
-.item { background:#121214; border-radius:14px; padding:12px 14px; margin-bottom:10px; }
+.item { background:var(--card); border-radius:14px; padding:12px 14px; margin-bottom:10px; }
 .item .t { color:var(--dim); font-size:13px; }
 .item .h { font-size:16px; margin-top:4px; line-height:1.3; }
 .item { display:flex; align-items:center; gap:12px; }
 .item .body { flex:1; min-width:0; }
-.item .chk { flex:none; width:44px; height:44px; border-radius:22px; border:2px solid #3a3a3c; background:transparent; padding:0;
+.item .chk { flex:none; width:44px; height:44px; border-radius:22px; border:2px solid #b8b8bf; background:transparent; padding:0;
   font-size:22px; color:transparent; display:flex; align-items:center; justify-content:center; }
 #list.m > * { transform:scaleX(-1); }  /* the menu reads through the TP2 glass too (Alex 16.10) */
 .item.sel { outline:3px solid var(--acc); outline-offset:2px; }
-.item.done { background:rgba(61,220,132,.16); box-shadow:inset 0 0 0 1.5px var(--ok); }
-.item.done .chk { background:var(--ok); border-color:var(--ok); color:#000; }
+.item.done { background:rgba(34,184,99,.14); box-shadow:inset 0 0 0 1.5px var(--ok); }
+.item.done .chk { background:var(--ok); border-color:var(--ok); color:#fff; }
 .item.done .t::after { content:"  ✓ записал"; color:var(--ok); }
 .batch { display:flex; justify-content:space-between; align-items:baseline; margin:18px 2px 8px; font-size:17px; font-weight:700; }
 .batch span { color:var(--dim); font-size:13px; font-weight:400; }
@@ -44,14 +44,14 @@ button.on { background:var(--acc); color:#000; }
 .mirror #roll { transform-origin:center; }
 #marker { position:absolute; left:0; right:0; height:0; border-top:2px solid var(--line); pointer-events:none; }
 #count { position:absolute; inset:0; display:none; align-items:center; justify-content:center; font-size:30vw; font-weight:700; color:var(--acc); pointer-events:none; }
-#bar { position:absolute; left:0; right:0; bottom:0; padding:10px max(6px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 10px) max(6px, env(safe-area-inset-left)); background:linear-gradient(transparent, rgba(0,0,0,.92) 30%); display:flex; flex-wrap:nowrap; gap:4px; justify-content:center; }
+#bar { position:absolute; left:0; right:0; bottom:0; padding:10px max(6px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 10px) max(6px, env(safe-area-inset-left)); background:linear-gradient(rgba(255,255,255,0), rgba(255,255,255,.94) 30%); display:flex; flex-wrap:nowrap; gap:4px; justify-content:center; }
 #bar button { flex:1 1 0; min-width:0; padding:12px 0; font-size:17px; border-radius:10px; white-space:nowrap; }
-#back { position:absolute; top:calc(env(safe-area-inset-top) + 10px); left:max(12px, calc(env(safe-area-inset-left) + 6px)); z-index:4; background:rgba(28,28,30,.85); font-weight:600; }
+#back { position:absolute; top:calc(env(safe-area-inset-top) + 10px); left:max(12px, calc(env(safe-area-inset-left) + 6px)); z-index:4; background:rgba(230,230,235,.9); font-weight:600; }
 .playing #back { opacity:.25; }
 #bar .big { background:var(--acc); color:#000; font-weight:700; flex:1.6 1 0; }
 .playing #bar { display:none; }
-#hud { position:absolute; top:calc(env(safe-area-inset-top) + 8px); left:50%; transform:translateX(-50%); background:rgba(40,40,40,.92); padding:8px 14px; border-radius:10px; font-size:15px; display:none; z-index:5; white-space:nowrap; }
-#keytest { position:absolute; inset:0; background:#000; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px; gap:16px; z-index:6; }
+#hud { position:absolute; top:calc(env(safe-area-inset-top) + 8px); left:50%; transform:translateX(-50%); background:rgba(30,30,32,.9); color:#fff; padding:8px 14px; border-radius:10px; font-size:15px; display:none; z-index:5; white-space:nowrap; }
+#keytest { position:absolute; inset:0; background:#fff; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px; gap:16px; z-index:6; }
 #keytest .k { font-size:34px; color:var(--acc); min-height:44px; }
 #keytest .log { color:var(--dim); font-size:14px; max-height:40vh; overflow:auto; }
 </style>
@@ -92,7 +92,7 @@ button.on { background:var(--acc); color:#000; }
 <script>
 (() => {
 const $ = s => document.querySelector(s);
-const VERSION = "16.10-1345";
+const VERSION = "16.10-1355";
 // always the newest page (Alex 16.10: the iPhone kept an old copy): compare with the published file, reload if it differs
 fetch("index.html?t=" + Date.now(), { cache: "no-store" }).then(r => r.text()).then(t => {
   const m = t.match(/const VERSION = "([^"]+)"/);
@@ -165,6 +165,7 @@ function renderDays() {
 
 function renderList() {
   $("#list").classList.toggle("m", !!S.mirror);
+  $("#list").style.zoom = S.ui || 1;
   renderDays();
   document.querySelectorAll(".tabs [data-f]").forEach(b => b.classList.toggle("on", b.dataset.f === S.filter));
   const box = $("#items"); box.innerHTML = "";
@@ -343,7 +344,7 @@ function remote(cmd) {
 // ↑/↓ scroll the text a little (Alex 16.10), sticks scroll smoothly (see padLoop)
 const PAD = { 0: "toggle", 1: "list", 3: "mirror", 10: "prev", 11: "next", 2: "check", 5: "faster", 4: "slower", 7: "bigger", 6: "smaller", 12: "up", 13: "down", 9: "top", 8: "list" };
 let padPrev = [];
-// list screen (Alex 16.10: «меню листать тоже геймпадом»): ↑/↓ pick a script, ←/→ or L1/R1 switch day, ✕ open and start,
+// list screen (Alex 16.10: «меню листать тоже геймпадом»): ↑/↓ pick a script, ←/→ switch day, L1/R1 language, R2/L2 zoom, ✕ open and start,
 // □ tick recorded, R2/L2 language filter
 let sel = -1;
 function listMove(d) {
@@ -359,9 +360,12 @@ function langMove(d) {
   const L = ["all", "ru", "en"]; S.filter = L[(L.indexOf(S.filter) + d + 3) % 3]; store.set("filter", S.filter); sel = 0; renderList();
 }
 const selItem = () => visible()[sel];
+S.ui = store.get("ui", 1);
+function uiZoom(d) { S.ui = Math.round(Math.max(0.6, Math.min(2.2, S.ui + d)) * 10) / 10; store.set("ui", S.ui); $("#list").style.zoom = S.ui; hud("Меню " + Math.round(S.ui * 100) + "%"); }
 const LISTPAD = {
-  12: () => listMove(-1), 13: () => listMove(1), 14: () => dayMove(-1), 15: () => dayMove(1), 4: () => dayMove(-1), 5: () => dayMove(1),
-  6: () => langMove(-1), 7: () => langMove(1),
+  12: () => listMove(-1), 13: () => listMove(1), 14: () => dayMove(-1), 15: () => dayMove(1), 4: () => langMove(-1), 5: () => langMove(1),
+  // R2 / L2 zoom the menu in and out (Alex 16.10)
+  7: () => uiZoom(0.1), 6: () => uiZoom(-0.1),
   0: () => { const it = selItem() || visible().find(i => !done.has(i.id)); if (it) { open(items.indexOf(it)); start(); } },
   1: () => {},  // ○ in the list does nothing (iOS would also treat it as Back)
   2: () => { const it = selItem(); if (it) { setDone(it.id, !done.has(it.id)); renderList(); } },
