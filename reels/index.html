@@ -35,6 +35,10 @@ h1 { font-size: 20px; margin: 0; letter-spacing: -.3px; flex: 1; }
 .tab b { color: var(--text); margin-left: 4px; }
 .tab.on { background: var(--text); color: #000; border-color: var(--text); }
 .tab.on b { color: #000; }
+.tab[data-t="status"] { background: rgba(10,132,255,.18); border-color: rgba(10,132,255,.5); color: #7cbcff; }
+.tab[data-t="status"] b { color: #cfe6ff; }
+.tab[data-t="status"].on { background: var(--blue); border-color: var(--blue); color: #fff; }
+.tab[data-t="status"].on b { color: #fff; }
 main { padding: 12px 16px 40px; }
 .group { color: var(--mute); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; margin: 16px 2px 8px; }
 .item { display: flex; gap: 12px; background: var(--card); border-radius: 16px; padding: 10px; margin-bottom: 10px; border: 1px solid var(--line); }
@@ -136,7 +140,7 @@ if (TG) { TG.ready(); TG.expand(); try { TG.setHeaderColor("#0b0b0d"); TG.setBac
 const qs = new URLSearchParams(location.search), hs = new URLSearchParams(location.hash.slice(1));
 let K = qs.get("k") || hs.get("k");
 try { if (K) localStorage.setItem("rk", K); else K = localStorage.getItem("rk"); } catch (e) {}
-const TABS = [["status", "Статус"], ["you", "Ждут тебя"], ["scripts", "Сценарии"], ["work", "В работе"], ["failed", "Не прошли"], ["done", "Готовы"], ["all", "Все"]];
+const TABS = [["scripts", "Сценарии"], ["status", "Статус"], ["you", "Ждут тебя"], ["work", "В работе"], ["failed", "Не прошли"], ["done", "Готовы"], ["all", "Все"]];
 const LABEL = { you: "Ждёт тебя", work: "Делается", queue: "В очереди", failed: "Не прошёл", done: "Готов", off: "Не выкладываем", script: "Ждёт записи", review: "Сценарий на проверку" };
 let DATA = null, tab = "you", lang = "", cur = null, shown = [];
 let SEEN = {};
@@ -166,7 +170,26 @@ async function viaPages(path, fresh) {
   return r.arrayBuffer();
 }
 async function getData() { try { return await viaApi("data.bin"); } catch (e) { return viaPages("data.bin", true); } }
-async function getVideo(name) { try { return await viaPages("v/" + name + ".bin", false); } catch (e) { return viaApi("v/" + name + ".bin"); } }
+async function fetchVideo(name) { try { return await viaPages("v/" + name + ".bin", false); } catch (e) { return viaApi("v/" + name + ".bin"); } }
+// videos are immutable (the name changes with the reel): kept on the phone after the first load, opened instantly
+const VC = "reels-v1";
+async function getVideo(name) {
+  try { const c = await caches.open(VC); const hit = await c.match("v/" + name); if (hit) return hit.arrayBuffer();
+    const buf = await fetchVideo(name); c.put("v/" + name, new Response(buf.slice(0))); return buf; } catch (e) { return fetchVideo(name); }
+}
+const pre = {};
+function preload(x) {  // decrypted ahead, so opening the card plays at once
+  if (!x.video || vids[x.video] || pre[x.video]) return pre[x.video];
+  pre[x.video] = getVideo(x.video).then(open).then((b) => { vids[x.video] = URL.createObjectURL(new Blob([b], { type: "video/mp4" })); }).catch(() => { delete pre[x.video]; });
+  return pre[x.video];
+}
+async function prefetchAll() {
+  // decrypted in memory: only what waits for him; the rest just lands in the phone's cache (disk), seconds to open
+  for (const x of DATA.items.filter((x) => x.video && x.state === "you")) await preload(x);
+  for (const x of DATA.items.filter((x) => x.video && x.state !== "you").slice(0, 25)) { try { await getVideo(x.video); } catch (e) {} }
+  try { const c = await caches.open(VC); const keep = new Set(DATA.items.filter((x) => x.video).map((x) => "v/" + x.video));
+    for (const r of await c.keys()) { const k = new URL(r.url).pathname.split("/reels/").pop(); if (!keep.has(k)) c.delete(r); } } catch (e) {}
+}
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const pack = (s) => esc(s).replace(/&lt;b&gt;/g, "<b>").replace(/&lt;\/b&gt;/g, "</b>").replace(/&lt;i&gt;/g, "<i>").replace(/&lt;\/i&gt;/g, "</i>");
 const toast = (t) => { const e = $("#toast"); e.textContent = t; e.classList.add("on"); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove("on"), 3200); };
@@ -198,7 +221,7 @@ function match(x, q) {
 }
 
 function statusView(base) {
-  const order = ["work", "queue", "you", "review", "failed", "script", "done", "off"];
+  const order = ["you", "work", "queue", "review", "failed", "script", "done", "off"];
   const names = { work: "Делается сейчас", queue: "В очереди", you: "Ждут тебя", review: "Сценарии на проверку", failed: "Не прошли ревью", script: "Ждут записи", done: "Готовы", off: "Не выкладываем" };
   let html = "";
   for (const g of order) {
@@ -237,7 +260,7 @@ function render() {
     html += `<div class="item" data-id="${x.id}">
       <div class="thumb" ${x.thumb ? `style="background-image:url(${x.thumb})"` : ""}>${x.thumb ? "" : `<div class="ph">${x.state === "script" ? "🎙" : x.state === "review" ? "📝" : "⏳"}</div>`}</div>
       <div class="body">
-        <div class="row">${isNew(x) ? '<span class="new"></span>' : ""}<span class="num">${x.lang} ${x.id.slice(-2)}</span><span class="tg">${x.n} · ${esc(x.tag)}</span></div>
+        <div class="row">${isNew(x) ? '<span class="new"></span>' : ""}<span class="num">${x.lang} ${x.id.slice(-2)}</span><span class="tg">${esc(x.tag)}</span></div>
         <div class="row"><span class="chip ${x.state}">${chip}</span>${x.status === "4К готов" ? '<span class="chip">4К</span>' : ""}${x.when ? `<span class="chip">⏰ ${esc(x.when.slice(8, 10) + "." + x.when.slice(5, 7) + " " + x.when.slice(11))}</span>` : ""}<span class="scores">${scs}</span></div>
         <div class="hook">${esc(x.hook)}</div>
         ${x.step ? `<div class="step">${esc(x.step)}</div>` : ""}
@@ -251,9 +274,8 @@ async function video(x) {
   if (!x.video) { p.innerHTML = `<div class="ld">${x.state === "script" ? "Ещё не записан" : "Видео ещё делается"}</div>`; return; }
   if (!vids[x.video]) {
     p.innerHTML = '<div class="ld">Загружаю видео…</div>';
-    try {
-      vids[x.video] = URL.createObjectURL(new Blob([await open(await getVideo(x.video))], { type: "video/mp4" }));
-    } catch (e) { p.innerHTML = '<div class="ld">Видео не загрузилось</div>'; return; }
+    await preload(x);
+    if (!vids[x.video]) { p.innerHTML = '<div class="ld">Видео не загрузилось</div>'; return; }
   }
   if (cur !== x.id || !document.body.contains(p)) return;
   p.innerHTML = `<video src="${vids[x.video]}" controls playsinline webkit-playsinline preload="auto"></video>`;
@@ -315,13 +337,13 @@ function infoHtml(x) {
     if (x.ru) h += `<details class="box"><summary><h3 style="display:inline">Перевод</h3></summary><div class="pack" style="margin-top:8px">${esc(x.ru)}</div></details>`;
     if (x.screen) h += `<details class="box"><summary><h3 style="display:inline">На экран</h3></summary><div class="pack" style="margin-top:8px">${esc(x.screen)}</div></details>`;
     if (x.why) h += `<details class="box"><summary><h3 style="display:inline">Почему сильный</h3></summary><div class="pack" style="margin-top:8px">${esc(x.why)}</div></details>`;
-    if (x.agents) h += `<details class="box" open><summary><h3 style="display:inline">Выводы агентов</h3></summary><div class="pack" style="margin-top:8px">${esc(x.agents)}</div></details>`;
+    if (x.agents) h += `<details class="box"><summary><h3 style="display:inline">Выводы агентов</h3></summary><div class="pack" style="margin-top:8px">${esc(x.agents)}</div></details>`;
     if (x.sources) h += `<details class="box"><summary><h3 style="display:inline">Источники</h3></summary><div class="pack" style="margin-top:8px">${esc(x.sources)}</div></details>`;
     if (x.edit) h += `<div class="box"><h3>Твоя правка</h3><div class="pack">${esc(x.edit)}</div></div>`;
     return h;
   }
   for (const s of x.sections || []) {
-    h += `<details class="box" ${s.fold ? "" : "open"}><summary><h3 style="display:inline">${esc(s.t)}</h3></summary><div style="margin-top:10px">`;
+    h += `<details class="box"><summary><h3 style="display:inline">${esc(s.t)}</h3></summary><div style="margin-top:10px">`;
     if (s.note) h += `<div class="hint" style="font-size:14px;color:#5fdb7f;margin-bottom:8px">${esc(s.note)}</div>`;
     if (s.text) h += `<div class="pack">${esc(s.text)}</div>`;
     for (const bl of s.blocks || []) h += `<div style="margin-bottom:12px"><div class="row" style="justify-content:space-between"><b style="font-size:13px;color:var(--mute)">${esc(bl.k)}</b>
@@ -358,12 +380,13 @@ function bindInfo(x) {
 
 let infoSig = "";
 function fillDetail(x, withVideo = true) {
-  $("#dt").textContent = `${x.lang} ${x.id.slice(-2)} · ${x.n}`;
+  $("#dt").textContent = `${x.lang} ${x.id.slice(-2)} · ${x.tag}`;
   const busy = $("#form") && ($("#form").classList.contains("on") || ($("#txt") && $("#txt").value));
   const sigNow = JSON.stringify(x);
   if (!withVideo && (busy || sigNow === infoSig)) return;  // a refresh never wipes what he is typing, never touches the player
   infoSig = sigNow;
   if (withVideo) {
+    const i = shown.findIndex((y) => y.id === x.id); [shown[i + 1], shown[i - 1]].forEach((y) => y && preload(y));
     $("#detail").innerHTML = (x.state === "review" ? "" : `<div class="player" id="player"></div>
       <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="more" id="fs" style="padding:0">⛶ На весь экран</button></div>`) + `<div id="info"></div>`;
     if (x.state !== "review") video(x);
@@ -393,11 +416,15 @@ function openReel(id) {
   const x = DATA.items.find((i) => i.id === id); if (!x) return;
   SEEN[id] = sig(x); saveSeen(); infoSig = "";
   cur = id; $("#sheet").classList.add("on"); $("#sheet").scrollTop = 0; document.body.style.overflow = "hidden";
-  history.pushState({ id }, "", "#" + id); fillDetail(x);
+  fillDetail(x);
 }
-function closeReel() { if (DATA) render(); cur = null; $("#sheet").classList.remove("on"); document.body.style.overflow = ""; $("#detail").innerHTML = ""; }
+function closeReel() {
+  const v = $("#player video"); if (v) v.pause();
+  cur = null; $("#sheet").classList.remove("on"); document.body.style.overflow = ""; $("#detail").innerHTML = ""; $("#up").classList.remove("on");
+  if (DATA) render();
+}
 function step(d) {
-  const i = shown.findIndex((x) => x.id === cur); const n = shown[i + d]; if (n) { history.replaceState({ id: n.id }, "", "#" + n.id); cur = n.id; $("#sheet").scrollTop = 0; fillDetail(n); }
+  const i = shown.findIndex((x) => x.id === cur); const n = shown[i + d]; if (n) { cur = n.id; SEEN[n.id] = sig(n); saveSeen(); infoSig = ""; $("#sheet").scrollTop = 0; fillDetail(n); }
 }
 $("#list").onclick = (e) => { const it = e.target.closest(".item"); if (it) openReel(it.dataset.id); };
 try { tab = localStorage.getItem("tab") || "you"; } catch (e) {}
@@ -408,12 +435,11 @@ $("#q").oninput = render;
 window.addEventListener("scroll", () => $("#up").classList.toggle("on", window.scrollY > 600), { passive: true });
 $("#sheet").addEventListener("scroll", () => $("#up").classList.toggle("on", $("#sheet").scrollTop > 600), { passive: true });
 $("#up").onclick = () => { if (cur) $("#sheet").scrollTo({ top: 0, behavior: "smooth" }); else window.scrollTo({ top: 0, behavior: "smooth" }); };
-$("#back").onclick = () => history.back();
+$("#back").onclick = () => closeReel();
 $("#prev").onclick = () => step(-1); $("#next").onclick = () => step(1);
-window.onpopstate = (e) => { if (e.state && e.state.id) openReel(e.state.id); else closeReel(); };
-if (TG) { TG.BackButton.onClick(() => history.back()); }
+if (TG) { TG.BackButton.onClick(() => closeReel()); }
 setInterval(() => { if (TG) cur ? TG.BackButton.show() : TG.BackButton.hide(); }, 400);
-load().then(() => { const id = qs.get("r") || location.hash.slice(1); if (/^\d{6}-(RU|US)-\d\d$/.test(id)) openReel(id); });
+load().then(() => { if (DATA) setTimeout(prefetchAll, 300); const id = qs.get("r") || location.hash.slice(1); if (/^\d{6}-(RU|US)-\d\d$/.test(id)) openReel(id); });
 document.addEventListener("click", (e) => { const s = e.target.closest("summary"); if (s) e.stopPropagation(); });
 setInterval(() => { if (!document.hidden) load(); }, 20000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
