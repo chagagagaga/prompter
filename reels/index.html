@@ -140,7 +140,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 <button class="up" id="up">↑</button>
 
 <script>
-const APP_VER = "2026-10-17-f";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-17-g";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -234,7 +234,7 @@ const day = (x) => x.id.slice(4, 6) + "." + x.id.slice(2, 4);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const pack = (s) => esc(s).replace(/&lt;b&gt;/g, "<b>").replace(/&lt;\/b&gt;/g, "</b>").replace(/&lt;i&gt;/g, "<i>").replace(/&lt;\/i&gt;/g, "</i>");
 const toast = (t) => { const e = $("#toast"); e.textContent = t; e.classList.add("on"); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove("on"), 3200); };
-const st = (x) => x.state === "queue" ? "work" : x.state === "off" ? "done" : ["review", "script"].includes(x.state) ? "scripts" : x.state;
+const st = (x) => x.state === "queue" ? "work" : ["review", "script"].includes(x.state) ? "scripts" : x.state;  // «off» only in «Все» and «Статус»
 
 async function load() {
   if (!K) { $("#lock").textContent = "Открой ссылку из бота: в ней ключ."; return; }
