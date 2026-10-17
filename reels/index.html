@@ -189,6 +189,13 @@ async function getVideo(name, onp) {
 }
 let userLoading = 0;  // background prefetch waits while he waits for a video
 const pre = {};
+// iPhone keeps playing a <video> that left the page: two players of one reel = his speech «doubled» (17.10, RU 11).
+// Only one player exists at a time; every old one is stopped and emptied before a new one is made.
+let PLAYER = null;
+function stopPlayer() {
+  if (PLAYER) { try { PLAYER.pause(); PLAYER.removeAttribute("src"); PLAYER.load(); } catch (e) {} PLAYER = null; }
+  document.querySelectorAll("video").forEach((v) => { try { v.pause(); } catch (e) {} });
+}
 function preload(x, onp) {  // decrypted ahead, so opening the card plays at once
   if (!x.video || vids[x.video] || pre[x.video]) return pre[x.video];
   pre[x.video] = getVideo(x.video, onp).then(open).then((b) => { vids[x.video] = URL.createObjectURL(new Blob([b], { type: "video/mp4" })); }).catch(() => { delete pre[x.video]; });
@@ -295,7 +302,9 @@ async function video(x) {
     if (!vids[x.video]) { p.innerHTML = '<div class="ld">Видео не загрузилось</div>'; return; }
   }
   if (cur !== x.id || !document.body.contains(p)) return;
+  stopPlayer();
   p.innerHTML = `<video src="${vids[x.video]}" controls playsinline webkit-playsinline preload="auto"></video>`;
+  PLAYER = p.querySelector("video");
 }
 
 function actions(x) {
@@ -403,6 +412,7 @@ function fillDetail(x, withVideo = true) {
   if (!withVideo && (busy || sigNow === infoSig)) return;  // a refresh never wipes what he is typing, never touches the player
   infoSig = sigNow;
   if (withVideo) {
+    stopPlayer();
     const i = shown.findIndex((y) => y.id === x.id);
     setTimeout(() => (pre[x.video] || Promise.resolve()).then(() => [shown[i + 1], shown[i - 1]].forEach((y) => y && preload(y))), 0);
     $("#detail").innerHTML = (x.state === "review" ? "" : `<div class="player" id="player"></div>
@@ -437,7 +447,7 @@ function openReel(id) {
   fillDetail(x);
 }
 function closeReel() {
-  const v = $("#player video"); if (v) v.pause();
+  stopPlayer();
   cur = null; $("#sheet").classList.remove("on"); document.body.style.overflow = ""; $("#detail").innerHTML = ""; $("#up").classList.remove("on");
   if (DATA) render();
 }
@@ -460,7 +470,7 @@ setInterval(() => { if (TG) cur ? TG.BackButton.show() : TG.BackButton.hide(); }
 load().then(() => { if (DATA) setTimeout(prefetchAll, 300); const id = qs.get("r") || location.hash.slice(1); if (/^\d{6}-(RU|US)-\d\d$/.test(id)) openReel(id); });
 document.addEventListener("click", (e) => { const s = e.target.closest("summary"); if (s) e.stopPropagation(); });
 setInterval(() => { if (!document.hidden) load(); }, 20000);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); else if (PLAYER) PLAYER.pause(); });
 </script>
 </body>
 </html>
