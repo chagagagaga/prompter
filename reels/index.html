@@ -90,6 +90,10 @@ textarea { min-height: 110px; }
 .toast { position: fixed; left: 16px; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 30; background: #f2f2f4; color: #000;
   border-radius: 14px; padding: 13px 16px; font-weight: 600; transform: translateY(150%); transition: transform .25s; }
 .toast.on { transform: none; }
+details > summary { list-style: none; cursor: pointer; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary h3::after { content: " ›"; }
+details[open] > summary h3::after { content: " ⌄"; }
 .lock { padding: 80px 24px; text-align: center; color: var(--mute); }
 .up { position: fixed; right: 16px; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 8; width: 48px; height: 48px; border-radius: 50%;
   border: 1px solid var(--line); background: rgba(30,30,36,.95); color: var(--text); font-size: 22px; display: none; box-shadow: 0 6px 20px rgba(0,0,0,.5); }
@@ -132,14 +136,14 @@ if (TG) { TG.ready(); TG.expand(); try { TG.setHeaderColor("#0b0b0d"); TG.setBac
 const qs = new URLSearchParams(location.search), hs = new URLSearchParams(location.hash.slice(1));
 let K = qs.get("k") || hs.get("k");
 try { if (K) localStorage.setItem("rk", K); else K = localStorage.getItem("rk"); } catch (e) {}
-const TABS = [["status", "Статус"], ["you", "Ждут тебя"], ["work", "В работе"], ["failed", "Не прошли"], ["done", "Готовы"], ["script", "Ждут записи"], ["all", "Все"]];
-const LABEL = { you: "Ждёт тебя", work: "Делается", queue: "В очереди", failed: "Не прошёл", done: "Готов", off: "Не выкладываем", script: "Ждёт записи" };
+const TABS = [["status", "Статус"], ["you", "Ждут тебя"], ["scripts", "Сценарии"], ["work", "В работе"], ["failed", "Не прошли"], ["done", "Готовы"], ["all", "Все"]];
+const LABEL = { you: "Ждёт тебя", work: "Делается", queue: "В очереди", failed: "Не прошёл", done: "Готов", off: "Не выкладываем", script: "Ждёт записи", review: "Сценарий на проверку" };
 let DATA = null, tab = "you", lang = "", cur = null, shown = [];
 let SEEN = {};
 try { SEEN = JSON.parse(localStorage.getItem("seen") || "{}"); } catch (e) {}
 const saveSeen = () => { try { localStorage.setItem("seen", JSON.stringify(SEEN)); } catch (e) {} };
 const sig = (x) => x.state + "|" + x.status + "|" + (x.video || "");
-const isNew = (x) => SEEN[x.id] !== undefined && SEEN[x.id] !== sig(x) && ["you", "failed", "done"].includes(x.state);
+const isNew = (x) => SEEN[x.id] !== undefined && SEEN[x.id] !== sig(x) && ["you", "failed", "done", "review"].includes(x.state);
 const vids = {};
 const $ = (s) => document.querySelector(s);
 const b64 = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
@@ -166,7 +170,7 @@ async function getVideo(name) { try { return await viaPages("v/" + name + ".bin"
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const pack = (s) => esc(s).replace(/&lt;b&gt;/g, "<b>").replace(/&lt;\/b&gt;/g, "</b>").replace(/&lt;i&gt;/g, "<i>").replace(/&lt;\/i&gt;/g, "</i>");
 const toast = (t) => { const e = $("#toast"); e.textContent = t; e.classList.add("on"); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove("on"), 3200); };
-const st = (x) => x.state === "queue" ? "work" : x.state === "off" ? "done" : x.state;
+const st = (x) => x.state === "queue" ? "work" : x.state === "off" ? "done" : ["review", "script"].includes(x.state) ? "scripts" : x.state;
 
 async function load() {
   if (!K) { $("#lock").textContent = "Открой ссылку из бота: в ней ключ."; return; }
@@ -194,8 +198,8 @@ function match(x, q) {
 }
 
 function statusView(base) {
-  const order = ["work", "queue", "you", "failed", "script", "done", "off"];
-  const names = { work: "Делается сейчас", queue: "В очереди", you: "Ждут тебя", failed: "Не прошли ревью", script: "Ждут записи", done: "Готовы", off: "Не выкладываем" };
+  const order = ["work", "queue", "you", "review", "failed", "script", "done", "off"];
+  const names = { work: "Делается сейчас", queue: "В очереди", you: "Ждут тебя", review: "Сценарии на проверку", failed: "Не прошли ревью", script: "Ждут записи", done: "Готовы", off: "Не выкладываем" };
   let html = "";
   for (const g of order) {
     const xs = base.filter((x) => x.state === g).sort((a, b) => g === "queue" ? (a.queue_pos || 99) - (b.queue_pos || 99) : b.id.localeCompare(a.id));
@@ -204,7 +208,7 @@ function statusView(base) {
     for (const x of xs) {
       const what = g === "work" ? (x.master === "rendering" ? "Рендерю 4К" : x.step || "в работе") : g === "queue" ? (x.queue_pos ? `${x.queue_pos}-й в очереди` : "ждёт линию")
         : g === "you" ? (x.status === "4К готов" ? "4К готов: выкладывать?" : "1080 на проверку") : g === "failed" ? "оценки " + Object.values(x.scores || {}).join("/")
-        : g === "done" ? (x.when ? "⏰ " + x.when.slice(8, 10) + "." + x.when.slice(5, 7) + " " + x.when.slice(11) : x.status) : x.status;
+        : g === "review" ? x.status : g === "done" ? (x.when ? "⏰ " + x.when.slice(8, 10) + "." + x.when.slice(5, 7) + " " + x.when.slice(11) : x.status) : x.status;
       html += `<div class="srow item" data-id="${x.id}"><span class="num">${x.lang} ${x.id.slice(-2)}</span>
         <div style="min-width:0"><div class="what">${isNew(x) ? '<span class="new" style="display:inline-block;margin-right:6px"></span>' : ""}${esc(what)}</div>
         <div class="when">${esc(x.tag)} · ${esc(x.updated)}</div></div><span class="go">›</span></div>`;
@@ -216,12 +220,12 @@ function statusView(base) {
 function render() {
   const q = $("#q").value.trim();
   const base = DATA.items.filter((x) => (!lang || x.lang === lang) && match(x, q));
-  const cnt = (t) => base.filter((x) => t === "all" || t === "status" ? t === "all" || ["work", "queue"].includes(x.state) : st(x) === t).length;
+  const cnt = (t) => base.filter((x) => t === "all" || (t === "status" ? ["work", "queue"].includes(x.state) : st(x) === t)).length;
   $("#tabs").innerHTML = TABS.map(([k, v]) => `<button class="tab ${k === tab ? "on" : ""}" data-t="${k}">${v}<b>${cnt(k)}</b></button>`).join("");
   if (tab === "status" && !q) { shown = base; statusView(base); return; }
   shown = base.filter((x) => tab === "all" || tab === "status" || q || st(x) === tab);
   if (q && !shown.length) shown = base;
-  const order = { you: 0, work: 1, queue: 2, failed: 3, script: 4, done: 5, off: 6 };
+  const order = { you: 0, work: 1, queue: 2, review: 3, failed: 4, script: 5, done: 6, off: 7 };
   shown.sort((a, b) => (tab === "work" ? a.queue_pos - b.queue_pos || (order[a.state] - order[b.state]) : 0) || b.id.localeCompare(a.id));
   if (!shown.length) { $("#list").innerHTML = `<div class="empty">${tab === "you" ? "Ничего не ждёт тебя 🎉" : "Пусто"}</div>`; return; }
   let html = "", grp = "";
@@ -231,7 +235,7 @@ function render() {
     const scs = Object.values(x.scores || {}).map((v) => `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${v}</span>`).join("");
     const chip = x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}` : x.master === "rendering" ? "Рендерю 4К" : LABEL[x.state];
     html += `<div class="item" data-id="${x.id}">
-      <div class="thumb" ${x.thumb ? `style="background-image:url(${x.thumb})"` : ""}>${x.thumb ? "" : `<div class="ph">${x.state === "script" ? "🎙" : "⏳"}</div>`}</div>
+      <div class="thumb" ${x.thumb ? `style="background-image:url(${x.thumb})"` : ""}>${x.thumb ? "" : `<div class="ph">${x.state === "script" ? "🎙" : x.state === "review" ? "📝" : "⏳"}</div>`}</div>
       <div class="body">
         <div class="row">${isNew(x) ? '<span class="new"></span>' : ""}<span class="num">${x.lang} ${x.id.slice(-2)}</span><span class="tg">${x.n} · ${esc(x.tag)}</span></div>
         <div class="row"><span class="chip ${x.state}">${chip}</span>${x.status === "4К готов" ? '<span class="chip">4К</span>' : ""}${x.when ? `<span class="chip">⏰ ${esc(x.when.slice(8, 10) + "." + x.when.slice(5, 7) + " " + x.when.slice(11))}</span>` : ""}<span class="scores">${scs}</span></div>
@@ -251,21 +255,32 @@ async function video(x) {
       vids[x.video] = URL.createObjectURL(new Blob([await open(await getVideo(x.video))], { type: "video/mp4" }));
     } catch (e) { p.innerHTML = '<div class="ld">Видео не загрузилось</div>'; return; }
   }
-  if (cur !== x.id) return;
-  p.innerHTML = `<video src="${vids[x.video]}" controls playsinline preload="auto"></video>`;
+  if (cur !== x.id || !document.body.contains(p)) return;
+  p.innerHTML = `<video src="${vids[x.video]}" controls playsinline webkit-playsinline preload="auto"></video>`;
 }
 
 function actions(x) {
   const b = [];
-  if (x.status === "Смонтирован" && x.video) {
+  if (x.state === "review") {
+    b.push(["ap", "✅ Беру", "good"]);
+    b.push(["ed", "✏️ Есть правки", ""]);
+    b.push(["rw", "❌ Не беру, иди сам переписывай", ""]);
+    b.push(["tr", "🗑 Мусор", "bad"]);
+  } else if (x.state === "work" || x.state === "queue") {
+    return [];
+  } else if (x.status === "Смонтирован" && x.video) {
     b.push(["r4", "🎬 Рендери 4К + Threads ок", "main"]);
     b.push(["notes", "✏️ Прикольно, есть замечания", ""]);
     if (x.small_reel && x.small_threads) b.push(["fb", "🔧 Поправить мелочи ролика и Threads", ""]);
-    else if (x.small_reel) b.push(["fr", "🔧 Поправить мелочи ролика", ""]);
-    else if (x.small_threads) b.push(["ft", "🔧 Поправить мелочи Threads", ""]);
+    if (x.small_reel) b.push(["fr", "🔧 Поправить мелочи ролика", ""]);
+    if (x.small_threads) b.push(["ft", "🔧 Поправить мелочи Threads", ""]);
   } else if (x.status === "4К готов") {
     b.push(["pp", "✅ Выкладывай" + (x.when ? ` (${x.when.slice(8, 10)}.${x.when.slice(5, 7)} ${x.when.slice(11)})` : ""), "good"]);
     b.push(["pt", "🕒 Выкладываем, но другое время", ""]);
+    b.push(["pe", "✏️ Хочу сделать правки", ""]);
+    b.push(["pc", "🚫 Отмена, не выкладываем", "bad"]);
+  } else if (x.state === "done") {
+    b.push(["pt", "🕒 Поменять время", ""]);
     b.push(["pe", "✏️ Хочу сделать правки", ""]);
     b.push(["pc", "🚫 Отмена, не выкладываем", "bad"]);
   } else if (x.state === "failed") {
@@ -274,33 +289,61 @@ function actions(x) {
   }
   return b;
 }
+const TEXT_ACTS = ["notes", "pe", "pt", "ed"];
+const CONFIRM = { pc: "Точно не выкладываем?", tr: "Точно в мусор?", rw: "Переписать сценарий с нуля?" };
+const NEXT = { work: "Ролик делается. Кнопки появятся, когда он будет готов и пройдёт ревью.",
+  queue: "Ролик в очереди на монтаж. Кнопки появятся, когда он будет готов.",
+  script: "Сценарий одобрен, ждёт записи. После записи ролик смонтируется сам.", off: "Решили не выкладывать." };
+const sc = (v) => v == null ? "" : `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${v}</span>`;
 
-function fillDetail(x, withVideo = true) {
-  $("#dt").textContent = `${x.lang} ${x.id.slice(-2)} · ${x.n}`;
-  const scs = Object.entries(x.scores || {}).map(([k, v]) => `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${({ visual: "Визуал", facts: "Факты", producer: "Продюсер" })[k] || k} ${v}</span>`).join("");
+function infoHtml(x) {
   const acts = actions(x);
-  $("#detail").innerHTML = `
-    <div class="player" id="player"></div>
-    <div class="row" style="margin-top:12px"><span class="chip ${x.state}">${x.master === "rendering" ? "Рендерю 4К" : LABEL[x.state]}</span><span class="tg">${esc(x.tag)} · ${esc(x.pillar)} · ${esc(x.updated)}</span></div>
-    ${scs ? `<div class="scores" style="margin-top:8px">${scs}</div>` : ""}
+  const label = x.master === "rendering" ? "Рендерю 4К" : x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}-й` : LABEL[x.state];
+  let h = `<div class="box"><h3>Статус</h3>
+    <div class="row"><span class="chip ${x.state === "review" ? "you" : x.state}">${label}</span><span class="chip">${esc(x.status)}</span>${x.when ? `<span class="chip">⏰ ${esc(x.when)}</span>` : ""}</div>
     ${x.step ? `<div class="step" style="margin-top:8px;white-space:normal">⚙️ ${esc(x.step)}</div>` : ""}
-    ${acts.length ? `<div class="acts">${acts.map(([a, t, c]) => `<button class="btn ${c}" data-a="${a}">${t}</button>`).join("")}
-      <div class="form" id="form"><textarea id="txt" placeholder="Что переделать. Можно надиктовать с клавиатуры 🎙"></textarea>
-        <button class="btn main" id="send">Отправить</button><div class="hint" id="fh"></div></div></div>` : ""}
-    ${x.speech ? `<div class="box speech"><h3>🎙 Криво в речи</h3><div class="pack">${esc(x.speech)}</div></div>` : ""}
-    ${x.package ? `<div class="box"><h3>Пакет</h3><div class="pack cl" id="pk">${pack(x.package)}</div><button class="more" id="pkm">Показать всё</button></div>` : ""}
-    <div class="box"><h3>Сценарий</h3><div class="pack cl" id="sc">${esc(x.script)}</div><button class="more" id="scm">Показать всё</button></div>`;
-  $("#pkm") && ($("#pkm").onclick = () => { $("#pk").classList.toggle("cl"); });
-  $("#scm").onclick = () => { $("#sc").classList.toggle("cl"); };
+    ${(x.log || []).length ? `<details style="margin-top:8px"><summary class="hint">Что происходило (последние шаги)</summary><div class="pack" style="font-size:12px;color:var(--mute);margin-top:6px">${(x.log || []).map(esc).join("\n")}</div></details>` : ""}
+    ${(x.acts || []).length ? `<div class="hint" style="margin-top:8px">Твои нажатия: ${(x.acts || []).map((a) => esc(a.t + " " + a.a)).join(" · ")}</div>` : ""}
+    <div class="hint" style="margin-top:6px">${esc(x.tag)} · ${esc(x.pillar || "")} · обновлено ${esc(x.updated || "")}</div></div>`;
+  h += `<div class="box"><h3>Что дальше</h3>${acts.length ? `<div class="acts" style="margin:0">${acts.map(([a, t, c]) => `<button class="btn ${c}" data-a="${a}">${t}</button>`).join("")}
+      <div class="form" id="form"><textarea id="txt"></textarea><button class="btn main" id="send">Отправить</button></div></div>` : `<div class="hint" style="font-size:14px">${NEXT[x.state] || ""}</div>`}</div>`;
+  if (x.speech) h += `<div class="box speech"><h3>🎙 Криво в речи</h3><div class="pack">${esc(x.speech)}</div></div>`;
+  if (x.state === "review") {
+    h += `<div class="box"><h3>Хук</h3><div class="pack" style="font-size:17px;font-weight:700">${esc(x.hook)}</div>
+      <div class="hint" style="margin-top:6px">${esc(x.format || "")} · ${esc(x.sec || "")} сек · оценка ${esc(x.score || "")}</div></div>`;
+    h += `<div class="box"><h3>Сценарий</h3><div class="pack">${esc(x.script)}</div></div>`;
+    if (x.ru) h += `<details class="box"><summary><h3 style="display:inline">Перевод</h3></summary><div class="pack" style="margin-top:8px">${esc(x.ru)}</div></details>`;
+    if (x.screen) h += `<details class="box"><summary><h3 style="display:inline">На экран</h3></summary><div class="pack" style="margin-top:8px">${esc(x.screen)}</div></details>`;
+    if (x.why) h += `<details class="box"><summary><h3 style="display:inline">Почему сильный</h3></summary><div class="pack" style="margin-top:8px">${esc(x.why)}</div></details>`;
+    if (x.agents) h += `<details class="box" open><summary><h3 style="display:inline">Выводы агентов</h3></summary><div class="pack" style="margin-top:8px">${esc(x.agents)}</div></details>`;
+    if (x.sources) h += `<details class="box"><summary><h3 style="display:inline">Источники</h3></summary><div class="pack" style="margin-top:8px">${esc(x.sources)}</div></details>`;
+    if (x.edit) h += `<div class="box"><h3>Твоя правка</h3><div class="pack">${esc(x.edit)}</div></div>`;
+    return h;
+  }
+  for (const s of x.sections || []) {
+    h += `<details class="box" ${s.fold ? "" : "open"}><summary><h3 style="display:inline">${esc(s.t)}</h3></summary><div style="margin-top:10px">`;
+    if (s.note) h += `<div class="hint" style="font-size:14px;color:#5fdb7f;margin-bottom:8px">${esc(s.note)}</div>`;
+    if (s.text) h += `<div class="pack">${esc(s.text)}</div>`;
+    for (const bl of s.blocks || []) h += `<div style="margin-bottom:12px"><div class="row" style="justify-content:space-between"><b style="font-size:13px;color:var(--mute)">${esc(bl.k)}</b>
+      <button class="more" data-copy="${encodeURIComponent(bl.text)}" style="padding:0">Копировать</button></div><div class="pack">${esc(bl.text)}</div></div>`;
+    for (const r of s.rows || []) h += `<div style="margin:8px 0"><div class="row">${sc(r.score)}<b style="font-size:13px">${esc(r.k)}</b></div><div class="pack" style="font-size:13px;color:var(--mute);margin-top:3px">${esc(r.text)}</div></div>`;
+    if ((s.list || []).length) h += `<div style="margin-top:8px">${s.list.map((l) => `<div class="pack" style="font-size:13px;margin-bottom:8px">• ${esc(l)}</div>`).join("")}</div>`;
+    h += `</div></details>`;
+  }
+  h += `<details class="box"><summary><h3 style="display:inline">Сценарий</h3></summary><div class="pack" style="margin-top:8px">${esc(x.script)}</div></details>`;
+  return h;
+}
+
+function bindInfo(x) {
   let pending = null;
   document.querySelectorAll("[data-a]").forEach((el) => el.onclick = () => {
     const a = el.dataset.a;
-    if (["notes", "pe", "pt"].includes(a)) {
+    if (TEXT_ACTS.includes(a)) {
       pending = a; $("#form").classList.add("on");
-      $("#txt").placeholder = a === "pt" ? "Когда: «18.10 19:30» или «завтра 21:00» (Алматы)" : "Что переделать. Можно надиктовать с клавиатуры 🎙";
+      $("#txt").placeholder = a === "pt" ? "Когда: «18.10 19:30» или «завтра 21:00» (Алматы)" : a === "ed" ? "Что поправить в сценарии. Можно надиктовать 🎙" : "Что переделать. Можно надиктовать с клавиатуры 🎙";
       $("#txt").rows = a === "pt" ? 1 : 5; $("#txt").focus(); return;
     }
-    if (a === "pc" && !confirm("Точно не выкладываем?")) return;
+    if (CONFIRM[a] && !confirm(CONFIRM[a])) return;
     send(a, x.id, "");
   });
   $("#send") && ($("#send").onclick = () => {
@@ -308,12 +351,33 @@ function fillDetail(x, withVideo = true) {
     if (!t) { toast("Напиши текст"); return; }
     send(pending, x.id, t);
   });
-  if (withVideo) video(x);
+  document.querySelectorAll("[data-copy]").forEach((el) => el.onclick = () => {
+    try { navigator.clipboard.writeText(decodeURIComponent(el.dataset.copy)); toast("Скопировано"); } catch (e) {}
+  });
+}
+
+let infoSig = "";
+function fillDetail(x, withVideo = true) {
+  $("#dt").textContent = `${x.lang} ${x.id.slice(-2)} · ${x.n}`;
+  const busy = $("#form") && ($("#form").classList.contains("on") || ($("#txt") && $("#txt").value));
+  const sigNow = JSON.stringify(x);
+  if (!withVideo && (busy || sigNow === infoSig)) return;  // a refresh never wipes what he is typing, never touches the player
+  infoSig = sigNow;
+  if (withVideo) {
+    $("#detail").innerHTML = (x.state === "review" ? "" : `<div class="player" id="player"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="more" id="fs" style="padding:0">⛶ На весь экран</button></div>`) + `<div id="info"></div>`;
+    if (x.state !== "review") video(x);
+    $("#fs") && ($("#fs").onclick = () => { const v = $("#player video"); if (!v) return;
+      if (v.webkitEnterFullscreen) v.webkitEnterFullscreen(); else if (v.requestFullscreen) v.requestFullscreen(); });
+  }
+  $("#info").innerHTML = infoHtml(x);
+  bindInfo(x);
 }
 
 function send(a, id, text) {
   const notes = { r4: "🎬 4К поехал", notes: "✏️ Замечания ушли", fr: "🔧 Правлю мелочи", ft: "🔧 Правлю мелочи", fb: "🔧 Правлю мелочи",
-    pp: "✅ Ставлю на выкладку", pt: "🕒 Ставлю на время", pe: "✏️ Снимаю и переделываю", pc: "🚫 Не выкладываем", fx: "🔧 Дорабатываю" };
+    pp: "✅ Ставлю на выкладку", pt: "🕒 Ставлю на время", pe: "✏️ Снимаю и переделываю", pc: "🚫 Не выкладываем", fx: "🔧 Дорабатываю",
+    ap: "✅ Беру", ed: "✏️ Правлю сценарий", rw: "❌ Переписываю", tr: "🗑 В мусор" };
   if (KB) {  // launched from the bot's keyboard button: the command goes straight to the bot, text included
     try { TG.sendData(JSON.stringify({ a, id, text })); return; } catch (e) {}
   }
@@ -327,7 +391,7 @@ function send(a, id, text) {
 
 function openReel(id) {
   const x = DATA.items.find((i) => i.id === id); if (!x) return;
-  SEEN[id] = sig(x); saveSeen();
+  SEEN[id] = sig(x); saveSeen(); infoSig = "";
   cur = id; $("#sheet").classList.add("on"); $("#sheet").scrollTop = 0; document.body.style.overflow = "hidden";
   history.pushState({ id }, "", "#" + id); fillDetail(x);
 }
@@ -350,6 +414,7 @@ window.onpopstate = (e) => { if (e.state && e.state.id) openReel(e.state.id); el
 if (TG) { TG.BackButton.onClick(() => history.back()); }
 setInterval(() => { if (TG) cur ? TG.BackButton.show() : TG.BackButton.hide(); }, 400);
 load().then(() => { const id = qs.get("r") || location.hash.slice(1); if (/^\d{6}-(RU|US)-\d\d$/.test(id)) openReel(id); });
+document.addEventListener("click", (e) => { const s = e.target.closest("summary"); if (s) e.stopPropagation(); });
 setInterval(() => { if (!document.hidden) load(); }, 20000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
 </script>
