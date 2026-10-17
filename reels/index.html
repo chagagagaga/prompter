@@ -123,7 +123,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 <header>
   <div class="top"><h1>Ролики</h1><span class="upd" id="upd"></span><button class="rf" id="rf" title="Обновить">⟳</button></div>
   <div class="search">
-    <input id="q" inputmode="search" placeholder="Номер: 08, RU-08, #US03" autocomplete="off">
+    <input id="q" inputmode="search" placeholder="Номер: 23, RU 23, EN 7" autocomplete="off">
     <div class="lang"><button data-l="" class="on">Все</button><button data-l="RU">RU</button><button data-l="EN">EN</button></div>
   </div>
   <div class="tabs" id="tabs"></div>
@@ -140,7 +140,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 <button class="up" id="up">↑</button>
 
 <script>
-const APP_VER = "2026-10-17-d";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-17-e";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -225,6 +225,7 @@ async function prefetchAll() {
   try { const c = await caches.open(VC); const keep = new Set(DATA.items.filter((x) => x.video).map((x) => "v/" + x.video));
     for (const r of await c.keys()) { const k = new URL(r.url).pathname.split("/reels/").pop(); if (!keep.has(k)) c.delete(r); } } catch (e) {}
 }
+const nm = (x) => x.num || (x.state === "review" ? `Сценарий ${x.lang} ${x.id.slice(-2)}` : `${x.lang} ${x.id.slice(-2)}`);
 const day = (x) => x.id.slice(4, 6) + "." + x.id.slice(2, 4);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const pack = (s) => esc(s).replace(/&lt;b&gt;/g, "<b>").replace(/&lt;\/b&gt;/g, "</b>").replace(/&lt;i&gt;/g, "<i>").replace(/&lt;\/i&gt;/g, "</i>");
@@ -245,7 +246,7 @@ async function load() {
     DATA.items.forEach((x) => { if (SEEN[x.id] === undefined) SEEN[x.id] = ""; });
     if (prev) {
       const fresh = DATA.items.filter((x) => { const o = prev.items.find((i) => i.id === x.id); return isNew(x) && (!o || sig(o) !== sig(x)); });
-      if (fresh.length) toast("🆕 " + fresh.map((x) => `${x.lang} ${x.id.slice(-2)} (${day(x)}): ${LABEL[x.state].toLowerCase()}`).join(", "));
+      if (fresh.length) toast("🆕 " + fresh.map((x) => `${nm(x)}: ${LABEL[x.state].toLowerCase()}`).join(", "));
     }
     render();
     if (cur) { const x = DATA.items.find((i) => i.id === cur); if (x) fillDetail(x, false); }
@@ -256,6 +257,9 @@ function match(x, q) {
   if (!q) return true;
   q = q.toUpperCase().replace(/[#\s_-]/g, "");
   const n = x.id.slice(-2), l = x.id.slice(7, 9);
+  if (x.num) { const g = x.num.replace(/\s/g, "").toUpperCase(), gn = x.num.split(" ")[1];
+    if (q === g || q === gn || q === "EN" + gn || q === "US" + gn) return true;
+    if (/^(RU|EN|US)?\d+$/.test(q)) return false; }  // a bare number means the running number, not the batch one
   const keys = [x.id.replace(/-/g, ""), l + n, (x.lang === "EN" ? "EN" : "RU") + n, n, String(+n), x.tag.replace(/[#_]/g, "")];
   return keys.some((k) => k.toUpperCase().startsWith(q) || k.toUpperCase() === q) || x.hook.toUpperCase().includes(q);
 }
@@ -272,7 +276,7 @@ function statusView(base) {
       const what = g === "work" ? (x.master === "rendering" ? "Рендерю 4К" : x.step || "в работе") : g === "queue" ? (x.queue_pos ? `${x.queue_pos}-й в очереди` : "ждёт линию")
         : g === "you" ? (x.status === "4К готов" ? "4К готов: выкладывать?" : "1080 на проверку") : g === "failed" ? "оценки " + Object.values(x.scores || {}).join("/")
         : g === "review" ? x.status : g === "done" ? (x.when ? "⏰ " + x.when.slice(8, 10) + "." + x.when.slice(5, 7) + " " + x.when.slice(11) : x.status) : x.status;
-      html += `<div class="srow item" data-id="${x.id}"><span class="num">${x.lang} ${x.id.slice(-2)}<div class="when">${day(x)}</div></span>
+      html += `<div class="srow item" data-id="${x.id}"><span class="num">${esc(nm(x))}<div class="when">${day(x)}</div></span>
         <div style="min-width:0"><div class="what">${isNew(x) ? '<span class="new" style="display:inline-block;margin-right:6px"></span>' : ""}${esc(what)}</div>
         <div class="when">${esc(x.tag)} · ${esc(x.updated)}</div></div><span class="go">›</span></div>`;
     }
@@ -301,7 +305,7 @@ function render() {
     html += `<div class="item" data-id="${x.id}">
       <div class="thumb" ${x.thumb ? `style="background-image:url(${x.thumb})"` : ""}>${x.thumb ? "" : `<div class="ph">${x.state === "script" ? "🎙" : x.state === "review" ? "📝" : "⏳"}</div>`}</div>
       <div class="body">
-        <div class="row">${isNew(x) ? '<span class="new"></span>' : ""}<span class="num">${x.lang} ${x.id.slice(-2)}</span><span class="chip" style="background:#2a2a31;color:#fff">${day(x)}</span></div>
+        <div class="row">${isNew(x) ? '<span class="new"></span>' : ""}<span class="num">${esc(nm(x))}</span><span class="tg">батч ${day(x)}</span></div>
         <div class="row"><span class="chip ${pp ? "pend" : x.state}">${chip}</span>${x.status === "4К готов" ? '<span class="chip">4К</span>' : ""}${x.when ? `<span class="chip">⏰ ${esc(x.when.slice(8, 10) + "." + x.when.slice(5, 7) + " " + x.when.slice(11))}</span>` : ""}<span class="scores">${scs}</span></div>
         <div class="hook">${esc(x.hook)}</div>
         ${x.step ? `<div class="step">${esc(x.step)}</div>` : ""}
@@ -478,7 +482,7 @@ function bindInfo(x) {
 
 let infoSig = "";
 function fillDetail(x, withVideo = true) {
-  $("#dt").textContent = `${x.lang} ${x.id.slice(-2)} · батч ${day(x)}`;
+  $("#dt").textContent = `${nm(x)} · батч ${day(x)}`;
   const busy = ($("#form") && ($("#form").classList.contains("on") || ($("#txt") && $("#txt").value))) || (AUD && !AUD.paused);
   const sigNow = JSON.stringify(x);
   if (!withVideo && (busy || sigNow === infoSig)) return;  // a refresh never wipes what he is typing, never touches the player
