@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="robots" content="noindex">
+<title>Ролики</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root {
+  --bg: #0b0b0d; --card: #16161a; --card2: #1e1e24; --line: #2a2a31; --text: #f2f2f4; --mute: #8d8d98;
+  --accent: #ffd60a; --green: #34c759; --red: #ff453a; --blue: #0a84ff; --orange: #ff9f0a;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif; }
+body { padding-bottom: env(safe-area-inset-bottom); }
+header { position: sticky; top: 0; z-index: 5; background: rgba(11,11,13,.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px; border-bottom: 1px solid var(--line); }
+.top { display: flex; align-items: center; gap: 10px; }
+h1 { font-size: 20px; margin: 0; letter-spacing: -.3px; flex: 1; }
+.upd { color: var(--mute); font-size: 12px; }
+.search { margin-top: 10px; display: flex; gap: 8px; }
+.search input { flex: 1; background: var(--card2); border: 1px solid var(--line); color: var(--text); border-radius: 12px; padding: 11px 14px;
+  font-size: 17px; outline: none; }
+.search input:focus { border-color: #4a4a55; }
+.lang { display: flex; background: var(--card2); border-radius: 12px; border: 1px solid var(--line); overflow: hidden; }
+.lang button { background: none; border: 0; color: var(--mute); padding: 0 12px; font-weight: 600; font-size: 14px; }
+.lang button.on { color: #000; background: var(--text); }
+.tabs { display: flex; gap: 6px; overflow-x: auto; margin: 10px -16px 0; padding: 0 16px; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: none; background: var(--card2); border: 1px solid var(--line); color: var(--mute); border-radius: 999px; padding: 7px 12px;
+  font-size: 14px; font-weight: 600; white-space: nowrap; }
+.tab b { color: var(--text); margin-left: 4px; }
+.tab.on { background: var(--text); color: #000; border-color: var(--text); }
+.tab.on b { color: #000; }
+main { padding: 12px 16px 40px; }
+.group { color: var(--mute); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; margin: 16px 2px 8px; }
+.item { display: flex; gap: 12px; background: var(--card); border-radius: 16px; padding: 10px; margin-bottom: 10px; border: 1px solid var(--line); }
+.thumb { width: 64px; height: 114px; border-radius: 10px; background: var(--card2) center/cover; flex: none; position: relative; overflow: hidden; }
+.thumb .ph { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mute); font-size: 22px; }
+.body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.num { font-weight: 800; font-size: 17px; letter-spacing: -.2px; }
+.tg { color: var(--mute); font-size: 13px; font-variant-numeric: tabular-nums; }
+.hook { font-size: 14px; color: #d6d6dc; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.chip { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--card2); color: var(--mute); }
+.chip.you { background: rgba(255,214,10,.16); color: var(--accent); }
+.chip.work { background: rgba(10,132,255,.16); color: #5eb0ff; }
+.chip.queue { background: rgba(141,141,152,.16); }
+.chip.failed { background: rgba(255,69,58,.15); color: #ff7a71; }
+.chip.done { background: rgba(52,199,89,.15); color: #5fdb7f; }
+.scores { display: flex; gap: 4px; }
+.sc { font-size: 12px; font-weight: 700; border-radius: 6px; padding: 2px 6px; background: var(--card2); font-variant-numeric: tabular-nums; }
+.sc.g { color: #5fdb7f; } .sc.y { color: var(--accent); } .sc.r { color: #ff7a71; }
+.step { font-size: 12px; color: #5eb0ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.empty { color: var(--mute); text-align: center; padding: 50px 20px; }
+/* detail */
+.sheet { position: fixed; inset: 0; z-index: 10; background: var(--bg); overflow-y: auto; display: none; -webkit-overflow-scrolling: touch; }
+.sheet.on { display: block; }
+.bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
+  background: rgba(11,11,13,.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+.back { background: var(--card2); border: 0; color: var(--text); font-size: 15px; font-weight: 600; padding: 8px 12px; border-radius: 10px; }
+.bar .t { font-weight: 800; flex: 1; font-size: 17px; }
+.nav { background: var(--card2); border: 0; color: var(--text); font-size: 18px; width: 38px; height: 36px; border-radius: 10px; }
+.wrap { padding: 12px 16px 60px; max-width: 560px; margin: 0 auto; }
+.player { width: 100%; aspect-ratio: 9/16; max-height: 72vh; background: #000; border-radius: 16px; overflow: hidden; display: grid; place-items: center;
+  margin: 0 auto; }
+.player video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+.player .ld { color: var(--mute); }
+.acts { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
+.btn { border: 0; border-radius: 14px; padding: 15px; font-size: 16px; font-weight: 700; color: var(--text); background: var(--card2); text-align: center; }
+.btn.main { background: var(--accent); color: #000; }
+.btn.good { background: var(--green); color: #000; }
+.btn.bad { background: rgba(255,69,58,.15); color: #ff7a71; }
+.btn:active { transform: scale(.98); }
+.box { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; margin-top: 12px; }
+.box h3 { margin: 0 0 8px; font-size: 13px; color: var(--mute); text-transform: uppercase; letter-spacing: .5px; }
+.speech { border-color: rgba(255,214,10,.35); }
+.pack { white-space: pre-wrap; font-size: 14px; color: #dcdce2; word-break: break-word; }
+.pack.cl { max-height: 260px; overflow: hidden; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+.more { background: none; border: 0; color: var(--blue); font-size: 14px; font-weight: 600; padding: 8px 0 0; }
+textarea, .tinput { width: 100%; background: var(--card2); border: 1px solid var(--line); color: var(--text); border-radius: 12px; padding: 12px;
+  font: inherit; font-size: 16px; resize: vertical; outline: none; }
+textarea { min-height: 110px; }
+.form { display: none; flex-direction: column; gap: 8px; }
+.form.on { display: flex; }
+.hint { font-size: 12px; color: var(--mute); }
+.toast { position: fixed; left: 16px; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 30; background: #f2f2f4; color: #000;
+  border-radius: 14px; padding: 13px 16px; font-weight: 600; transform: translateY(150%); transition: transform .25s; }
+.toast.on { transform: none; }
+.lock { padding: 80px 24px; text-align: center; color: var(--mute); }
+</style>
+</head>
+<body>
+<header>
+  <div class="top"><h1>Ролики</h1><span class="upd" id="upd"></span></div>
+  <div class="search">
+    <input id="q" inputmode="search" placeholder="Номер: 08, RU-08, #US03" autocomplete="off">
+    <div class="lang"><button data-l="" class="on">Все</button><button data-l="RU">RU</button><button data-l="EN">EN</button></div>
+  </div>
+  <div class="tabs" id="tabs"></div>
+</header>
+<main id="list"><div class="lock" id="lock">Загружаю…</div></main>
+
+<div class="sheet" id="sheet">
+  <div class="bar"><button class="back" id="back">‹ Список</button><span class="t" id="dt"></span>
+    <button class="nav" id="prev">↑</button><button class="nav" id="next">↓</button></div>
+  <div class="wrap" id="detail"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.initData ? Telegram.WebApp : null;
+if (TG) { TG.ready(); TG.expand(); try { TG.setHeaderColor("#0b0b0d"); TG.setBackgroundColor("#0b0b0d"); } catch (e) {} }
+const qs = new URLSearchParams(location.search), hs = new URLSearchParams(location.hash.slice(1));
+let K = qs.get("k") || hs.get("k");
+try { if (K) localStorage.setItem("rk", K); else K = localStorage.getItem("rk"); } catch (e) {}
+const TABS = [["you", "Ждут тебя"], ["work", "В работе"], ["failed", "Не прошли"], ["done", "Готовы"], ["script", "Ждут записи"], ["all", "Все"]];
+const LABEL = { you: "Ждёт тебя", work: "Делается", queue: "В очереди", failed: "Не прошёл", done: "Готов", off: "Не выкладываем", script: "Ждёт записи" };
+let DATA = null, tab = "you", lang = "", cur = null, shown = [];
+const vids = {};
+const $ = (s) => document.querySelector(s);
+const b64 = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
+let ck = null;
+async function open(buf) {
+  ck = ck || await crypto.subtle.importKey("raw", b64(K), "AES-GCM", false, ["decrypt"]);
+  const u = new Uint8Array(buf);
+  return crypto.subtle.decrypt({ name: "AES-GCM", iv: u.slice(0, 12) }, ck, u.slice(12));
+}
+// GitHub Pages rebuilds ~1 min after a push; the API serves the pushed file at once (a 304 is free of the rate limit)
+const API = "https://api.github.com/repos/chagagagaga/prompter/contents/reels/";
+async function viaApi(path) {
+  const r = await fetch(API + path + "?ref=main", { headers: { Accept: "application/vnd.github.raw" }, cache: "no-cache" });
+  if (!r.ok) throw new Error(r.status);
+  return r.arrayBuffer();
+}
+async function viaPages(path, fresh) {
+  const r = await fetch(path + (fresh ? "?t=" + Date.now() : ""), { cache: fresh ? "no-store" : "default" });
+  if (!r.ok) throw new Error(r.status);
+  return r.arrayBuffer();
+}
+async function getData() { try { return await viaApi("data.bin"); } catch (e) { return viaPages("data.bin", true); } }
+async function getVideo(name) { try { return await viaPages("v/" + name + ".bin", false); } catch (e) { return viaApi("v/" + name + ".bin"); } }
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const pack = (s) => esc(s).replace(/&lt;b&gt;/g, "<b>").replace(/&lt;\/b&gt;/g, "</b>").replace(/&lt;i&gt;/g, "<i>").replace(/&lt;\/i&gt;/g, "</i>");
+const toast = (t) => { const e = $("#toast"); e.textContent = t; e.classList.add("on"); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove("on"), 3200); };
+const st = (x) => x.state === "queue" ? "work" : x.state === "off" ? "done" : x.state;
+
+async function load() {
+  if (!K) { $("#lock").textContent = "Открой ссылку из бота: в ней ключ."; return; }
+  try {
+    DATA = JSON.parse(new TextDecoder().decode(await open(await getData())));
+    $("#upd").textContent = "обновлено " + DATA.updated;
+    render();
+    if (cur) { const x = DATA.items.find((i) => i.id === cur); if (x) fillDetail(x, false); }
+  } catch (e) { if (!DATA) $("#lock").textContent = "Не открылось: неверный ключ или нет сети."; }
+}
+
+function match(x, q) {
+  if (!q) return true;
+  q = q.toUpperCase().replace(/[#\s_-]/g, "");
+  const n = x.id.slice(-2), l = x.id.slice(7, 9);
+  const keys = [x.id.replace(/-/g, ""), l + n, (x.lang === "EN" ? "EN" : "RU") + n, n, String(+n), x.tag.replace(/[#_]/g, "")];
+  return keys.some((k) => k.toUpperCase().startsWith(q) || k.toUpperCase() === q) || x.hook.toUpperCase().includes(q);
+}
+
+function render() {
+  const q = $("#q").value.trim();
+  const base = DATA.items.filter((x) => (!lang || x.lang === lang) && match(x, q));
+  const cnt = (t) => base.filter((x) => t === "all" || st(x) === t).length;
+  $("#tabs").innerHTML = TABS.map(([k, v]) => `<button class="tab ${k === tab ? "on" : ""}" data-t="${k}">${v}<b>${cnt(k)}</b></button>`).join("");
+  shown = base.filter((x) => tab === "all" || q || st(x) === tab);
+  if (q && !shown.length) shown = base;
+  const order = { you: 0, work: 1, queue: 2, failed: 3, script: 4, done: 5, off: 6 };
+  shown.sort((a, b) => (tab === "work" ? a.queue_pos - b.queue_pos || (order[a.state] - order[b.state]) : 0) || b.id.localeCompare(a.id));
+  if (!shown.length) { $("#list").innerHTML = `<div class="empty">${tab === "you" ? "Ничего не ждёт тебя 🎉" : "Пусто"}</div>`; return; }
+  let html = "", grp = "";
+  for (const x of shown) {
+    const g = `Батч ${x.id.slice(4, 6)}.${x.id.slice(2, 4)} · ${x.lang}`;
+    if (g !== grp) { html += `<div class="group">${g}</div>`; grp = g; }
+    const scs = Object.values(x.scores || {}).map((v) => `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${v}</span>`).join("");
+    const chip = x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}` : x.master === "rendering" ? "Рендерю 4К" : LABEL[x.state];
+    html += `<div class="item" data-id="${x.id}">
+      <div class="thumb" ${x.thumb ? `style="background-image:url(${x.thumb})"` : ""}>${x.thumb ? "" : `<div class="ph">${x.state === "script" ? "🎙" : "⏳"}</div>`}</div>
+      <div class="body">
+        <div class="row"><span class="num">${x.lang} ${x.id.slice(-2)}</span><span class="tg">${x.n} · ${esc(x.tag)}</span></div>
+        <div class="row"><span class="chip ${x.state}">${chip}</span>${x.status === "4К готов" ? '<span class="chip">4К</span>' : ""}${x.when ? `<span class="chip">⏰ ${esc(x.when.slice(8, 10) + "." + x.when.slice(5, 7) + " " + x.when.slice(11))}</span>` : ""}<span class="scores">${scs}</span></div>
+        <div class="hook">${esc(x.hook)}</div>
+        ${x.step ? `<div class="step">${esc(x.step)}</div>` : ""}
+      </div></div>`;
+  }
+  $("#list").innerHTML = html;
+}
+
+async function video(x) {
+  const p = $("#player");
+  if (!x.video) { p.innerHTML = `<div class="ld">${x.state === "script" ? "Ещё не записан" : "Видео ещё делается"}</div>`; return; }
+  if (!vids[x.video]) {
+    p.innerHTML = '<div class="ld">Загружаю видео…</div>';
+    try {
+      vids[x.video] = URL.createObjectURL(new Blob([await open(await getVideo(x.video))], { type: "video/mp4" }));
+    } catch (e) { p.innerHTML = '<div class="ld">Видео не загрузилось</div>'; return; }
+  }
+  if (cur !== x.id) return;
+  p.innerHTML = `<video src="${vids[x.video]}" controls playsinline preload="auto"></video>`;
+}
+
+function actions(x) {
+  const b = [];
+  if (x.status === "Смонтирован" && x.video) {
+    b.push(["r4", "🎬 Рендери 4К + Threads ок", "main"]);
+    b.push(["notes", "✏️ Прикольно, есть замечания", ""]);
+    if (x.small_reel && x.small_threads) b.push(["fb", "🔧 Поправить мелочи ролика и Threads", ""]);
+    else if (x.small_reel) b.push(["fr", "🔧 Поправить мелочи ролика", ""]);
+    else if (x.small_threads) b.push(["ft", "🔧 Поправить мелочи Threads", ""]);
+  } else if (x.status === "4К готов") {
+    b.push(["pp", "✅ Выкладывай" + (x.when ? ` (${x.when.slice(8, 10)}.${x.when.slice(5, 7)} ${x.when.slice(11)})` : ""), "good"]);
+    b.push(["pt", "🕒 Выкладываем, но другое время", ""]);
+    b.push(["pe", "✏️ Хочу сделать правки", ""]);
+    b.push(["pc", "🚫 Отмена, не выкладываем", "bad"]);
+  } else if (x.state === "failed") {
+    b.push(["fx", "🔧 Доработать по замечаниям ревьюеров", "main"]);
+    b.push(["notes", "✏️ Мои замечания", ""]);
+  }
+  return b;
+}
+
+function fillDetail(x, withVideo = true) {
+  $("#dt").textContent = `${x.lang} ${x.id.slice(-2)} · ${x.n}`;
+  const scs = Object.entries(x.scores || {}).map(([k, v]) => `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${({ visual: "Визуал", facts: "Факты", producer: "Продюсер" })[k] || k} ${v}</span>`).join("");
+  const acts = actions(x);
+  $("#detail").innerHTML = `
+    <div class="player" id="player"></div>
+    <div class="row" style="margin-top:12px"><span class="chip ${x.state}">${x.master === "rendering" ? "Рендерю 4К" : LABEL[x.state]}</span><span class="tg">${esc(x.tag)} · ${esc(x.pillar)} · ${esc(x.updated)}</span></div>
+    ${scs ? `<div class="scores" style="margin-top:8px">${scs}</div>` : ""}
+    ${x.step ? `<div class="step" style="margin-top:8px;white-space:normal">⚙️ ${esc(x.step)}</div>` : ""}
+    ${acts.length ? `<div class="acts">${acts.map(([a, t, c]) => `<button class="btn ${c}" data-a="${a}">${t}</button>`).join("")}
+      <div class="form" id="form"><textarea id="txt" placeholder="Что переделать. Можно надиктовать с клавиатуры 🎙"></textarea>
+        <button class="btn main" id="send">Отправить</button><div class="hint" id="fh"></div></div></div>` : ""}
+    ${x.speech ? `<div class="box speech"><h3>🎙 Криво в речи</h3><div class="pack">${esc(x.speech)}</div></div>` : ""}
+    ${x.package ? `<div class="box"><h3>Пакет</h3><div class="pack cl" id="pk">${pack(x.package)}</div><button class="more" id="pkm">Показать всё</button></div>` : ""}
+    <div class="box"><h3>Сценарий</h3><div class="pack cl" id="sc">${esc(x.script)}</div><button class="more" id="scm">Показать всё</button></div>`;
+  $("#pkm") && ($("#pkm").onclick = () => { $("#pk").classList.toggle("cl"); });
+  $("#scm").onclick = () => { $("#sc").classList.toggle("cl"); };
+  let pending = null;
+  document.querySelectorAll("[data-a]").forEach((el) => el.onclick = () => {
+    const a = el.dataset.a;
+    if (["notes", "pe", "pt"].includes(a)) {
+      pending = a; $("#form").classList.add("on");
+      $("#txt").placeholder = a === "pt" ? "Когда: «18.10 19:30» или «завтра 21:00» (Алматы)" : "Что переделать. Можно надиктовать с клавиатуры 🎙";
+      $("#txt").rows = a === "pt" ? 1 : 5; $("#txt").focus(); return;
+    }
+    if (a === "pc" && !confirm("Точно не выкладываем?")) return;
+    send(a, x.id, "");
+  });
+  $("#send") && ($("#send").onclick = () => {
+    const t = $("#txt").value.trim();
+    if (!t) { toast("Напиши текст"); return; }
+    send(pending, x.id, t);
+  });
+  if (withVideo) video(x);
+}
+
+function send(a, id, text) {
+  const notes = { r4: "🎬 4К поехал", notes: "✏️ Замечания ушли", fr: "🔧 Правлю мелочи", ft: "🔧 Правлю мелочи", fb: "🔧 Правлю мелочи",
+    pp: "✅ Ставлю на выкладку", pt: "🕒 Ставлю на время", pe: "✏️ Снимаю и переделываю", pc: "🚫 Не выкладываем", fx: "🔧 Дорабатываю" };
+  if (TG) {  // launched from the bot's keyboard button: the command goes straight to the bot, text included
+    try { TG.sendData(JSON.stringify({ a, id, text })); return; } catch (e) {}
+  }
+  // Safari / home screen: a command link opens the bot; a text is copied, the bot asks for it
+  if (text) { try { navigator.clipboard.writeText(text); } catch (e) {} }
+  const link = `https://t.me/${DATA.bot}?start=${a}_${id}`;
+  toast(notes[a] + (text ? ": текст скопирован, вставь его в чат с ботом" : ""));
+  setTimeout(load, 30000);
+  setTimeout(() => { location.href = link; }, text ? 900 : 300);
+}
+
+function openReel(id) {
+  const x = DATA.items.find((i) => i.id === id); if (!x) return;
+  cur = id; $("#sheet").classList.add("on"); $("#sheet").scrollTop = 0; document.body.style.overflow = "hidden";
+  history.pushState({ id }, "", "#" + id); fillDetail(x);
+}
+function closeReel() { cur = null; $("#sheet").classList.remove("on"); document.body.style.overflow = ""; $("#detail").innerHTML = ""; }
+function step(d) {
+  const i = shown.findIndex((x) => x.id === cur); const n = shown[i + d]; if (n) { history.replaceState({ id: n.id }, "", "#" + n.id); cur = n.id; $("#sheet").scrollTop = 0; fillDetail(n); }
+}
+$("#list").onclick = (e) => { const it = e.target.closest(".item"); if (it) openReel(it.dataset.id); };
+$("#tabs").onclick = (e) => { const t = e.target.closest(".tab"); if (t) { tab = t.dataset.t; render(); window.scrollTo(0, 0); } };
+document.querySelectorAll(".lang button").forEach((b) => b.onclick = () => {
+  document.querySelectorAll(".lang button").forEach((x) => x.classList.remove("on")); b.classList.add("on"); lang = b.dataset.l; render(); });
+$("#q").oninput = render;
+$("#back").onclick = () => history.back();
+$("#prev").onclick = () => step(-1); $("#next").onclick = () => step(1);
+window.onpopstate = (e) => { if (e.state && e.state.id) openReel(e.state.id); else closeReel(); };
+if (TG) { TG.BackButton.onClick(() => history.back()); }
+setInterval(() => { if (TG) cur ? TG.BackButton.show() : TG.BackButton.hide(); }, 400);
+load().then(() => { const id = location.hash.slice(1); if (/^\d{6}-(RU|US)-\d\d$/.test(id)) openReel(id); });
+setInterval(load, 45000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+</script>
+</body>
+</html>
