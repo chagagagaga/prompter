@@ -140,7 +140,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 <button class="up" id="up">↑</button>
 
 <script>
-const APP_VER = "2026-10-17-e";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-17-f";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -212,7 +212,11 @@ function stopPlayer() {
 }
 function preload(x, onp) {  // decrypted ahead, so opening the card plays at once
   if (!x.video || vids[x.video] || pre[x.video]) return pre[x.video];
-  pre[x.video] = getVideo(x.video, onp).then(open).then((b) => { vids[x.video] = URL.createObjectURL(new Blob([b], { type: "video/mp4" })); }).catch(() => { delete pre[x.video]; });
+  pre[x.video] = getVideo(x.video, onp).then(open).then((b) => {
+    vids[x.video] = URL.createObjectURL(new Blob([b], { type: "video/mp4" }));
+    const ks = Object.keys(vids);  // memory: at most 8 decrypted videos, the oldest freed (not the one playing)
+    while (ks.length > 8) { const old = ks.shift(); if (PLAYER && PLAYER.src === vids[old]) continue; URL.revokeObjectURL(vids[old]); delete vids[old]; delete pre[old]; }
+  }).catch(() => { delete pre[x.video]; });
   return pre[x.video];
 }
 async function prefetchAll() {
@@ -223,7 +227,7 @@ async function prefetchAll() {
     await preload(x);
   }
   try { const c = await caches.open(VC); const keep = new Set(DATA.items.filter((x) => x.video).map((x) => "v/" + x.video));
-    for (const r of await c.keys()) { const k = new URL(r.url).pathname.split("/reels/").pop(); if (!keep.has(k)) c.delete(r); } } catch (e) {}
+    for (const r of await c.keys()) { const k = new URL(r.url).pathname.split("/reels/").pop(); if (k.startsWith("v/") && !k.startsWith("v/../") && !keep.has(k)) c.delete(r); } } catch (e) {}
 }
 const nm = (x) => x.num || (x.state === "review" ? `Сценарий ${x.lang} ${x.id.slice(-2)}` : `${x.lang} ${x.id.slice(-2)}`);
 const day = (x) => x.id.slice(4, 6) + "." + x.id.slice(2, 4);
@@ -239,7 +243,7 @@ async function load() {
     DATA = JSON.parse(new TextDecoder().decode(await open(await getData())));
     $("#upd").innerHTML = '<span class="live"></span>' + DATA.updated;
     if (DATA.app && DATA.app !== APP_VER && !sessionStorage.getItem("rl" + DATA.app)) {
-      sessionStorage.setItem("rl" + DATA.app, "1"); location.replace(location.pathname + "?k=" + K + "&v=" + Date.now()); return;
+      sessionStorage.setItem("rl" + DATA.app, "1"); location.replace(location.pathname + "?v=" + Date.now() + (qs.get("k") ? "&k=" + K : "") + (location.hash || "")); return;
     }
     GHT = DATA.gh || "";
     if (!Object.keys(SEEN).length) { DATA.items.forEach((x) => SEEN[x.id] = sig(x)); saveSeen(); }
@@ -299,7 +303,7 @@ function render() {
   for (const x of shown) {
     const g = `Батч ${day(x)} · ${x.lang}`;
     if (g !== grp) { html += `<div class="group">${g}</div>`; grp = g; }
-    const scs = Object.values(x.scores || {}).map((v) => `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${v}</span>`).join("");
+    const scs = Object.values(x.scores || {}).map((v) => `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${Number(v) || 0}</span>`).join("");
     const pp = pendOf(x);
     const chip = pp ? "⏳ " + pp.a : x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}` : x.master === "rendering" ? "Рендерю 4К" : LABEL[x.state];
     html += `<div class="item" data-id="${x.id}">
@@ -365,7 +369,7 @@ const CONFIRM = { pc: "Точно не выкладываем?", tr: "Точно
 const NEXT = { work: "Ролик делается. Кнопки появятся, когда он будет готов и пройдёт ревью.",
   queue: "Ролик в очереди на монтаж. Кнопки появятся, когда он будет готов.",
   script: "Сценарий одобрен, ждёт записи. После записи ролик смонтируется сам.", off: "Решили не выкладывать." };
-const sc = (v) => v == null ? "" : `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${v}</span>`;
+const sc = (v) => v == null ? "" : `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${Number(v) || 0}</span>`;
 
 function infoHtml(x) {
   const acts = actions(x);
@@ -438,6 +442,7 @@ async function bindKaraoke(x) {
     if (AUD) { AUD.pause(); AUD = null; }
     $("#kplay").textContent = "Загружаю…";
     const b = await open(await getVideo("../a/" + x.audio).catch(() => fetchVideo("../a/" + x.audio)));
+    if (AUD && AUD.src) URL.revokeObjectURL(AUD.src);
     AUD = new Audio(URL.createObjectURL(new Blob([b], { type: "audio/mpeg" }))); AUD_ID = x.id;
     AUD.onended = () => { $("#kplay") && ($("#kplay").textContent = "▶︎ Слушать"); };
     return AUD;
