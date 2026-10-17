@@ -92,8 +92,14 @@ textarea { min-height: 110px; }
 .form.on { display: flex; }
 .hint { font-size: 12px; color: var(--mute); }
 .toast { position: fixed; left: 16px; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 30; background: #f2f2f4; color: #000;
-  border-radius: 14px; padding: 13px 16px; font-weight: 600; transform: translateY(150%); transition: transform .25s; }
-.toast.on { transform: none; }
+  border-radius: 14px; padding: 13px 16px; font-weight: 600; transform: translateY(150%); transition: transform .25s, opacity .25s;
+  opacity: 0; visibility: hidden; pointer-events: none; }
+.toast.on { transform: none; opacity: 1; visibility: visible; }
+.rf { background: var(--card2); border: 1px solid var(--line); color: var(--text); border-radius: 10px; width: 34px; height: 30px; font-size: 16px; }
+.ptr { height: 0; overflow: hidden; text-align: center; color: var(--mute); font-size: 13px; transition: height .2s; }
+.kw { cursor: pointer; border-radius: 4px; padding: 0 1px; }
+.kw.on { background: var(--accent); color: #000; }
+.pend { background: rgba(10,132,255,.18); color: #7cbcff; }
 details > summary { list-style: none; cursor: pointer; }
 details > summary::-webkit-details-marker { display: none; }
 details > summary h3::after { content: " ›"; }
@@ -115,13 +121,14 @@ details[open] > summary h3::after { content: " ⌄"; }
 </head>
 <body>
 <header>
-  <div class="top"><h1>Ролики</h1><span class="upd" id="upd"></span></div>
+  <div class="top"><h1>Ролики</h1><span class="upd" id="upd"></span><button class="rf" id="rf" title="Обновить">⟳</button></div>
   <div class="search">
     <input id="q" inputmode="search" placeholder="Номер: 08, RU-08, #US03" autocomplete="off">
     <div class="lang"><button data-l="" class="on">Все</button><button data-l="RU">RU</button><button data-l="EN">EN</button></div>
   </div>
   <div class="tabs" id="tabs"></div>
 </header>
+<div class="ptr" id="ptr">Отпусти, чтобы обновить</div>
 <main id="list"><div class="lock" id="lock">Загружаю…</div></main>
 
 <div class="sheet" id="sheet">
@@ -133,6 +140,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 <button class="up" id="up">↑</button>
 
 <script>
+const APP_VER = "2026-10-17-d";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -147,6 +155,8 @@ let SEEN = {};
 try { SEEN = JSON.parse(localStorage.getItem("seen") || "{}"); } catch (e) {}
 const saveSeen = () => { try { localStorage.setItem("seen", JSON.stringify(SEEN)); } catch (e) {} };
 const sig = (x) => x.state + "|" + x.status + "|" + (x.video || "");
+const pendOf = (x) => { const p = PEND[x.id]; if (!p) return null;
+  if (p.sig !== sig(x) || Date.now() - p.t > 20 * 60000) { delete PEND[x.id]; savePend(); return null; } return p; };
 const isNew = (x) => SEEN[x.id] !== undefined && SEEN[x.id] !== sig(x) && ["you", "failed", "done", "review"].includes(x.state);
 const vids = {};
 const $ = (s) => document.querySelector(s);
@@ -159,8 +169,10 @@ async function open(buf) {
 }
 // GitHub Pages rebuilds ~1 min after a push; the API serves the pushed file at once (a 304 is free of the rate limit)
 const API = "https://api.github.com/repos/chagagagaga/prompter/contents/reels/";
+let GHT = "";
 async function viaApi(path) {
-  const r = await fetch(API + path + "?ref=main", { headers: { Accept: "application/vnd.github.raw" }, cache: "no-cache" });
+  const h = { Accept: "application/vnd.github.raw" }; if (GHT) h.Authorization = "Bearer " + GHT;  // 5000 reads an hour
+  const r = await fetch(API + path + "?ref=main", { headers: h, cache: "no-cache" });
   if (!r.ok) throw new Error(r.status);
   return r.arrayBuffer();
 }
@@ -177,9 +189,10 @@ async function readAll(r, onp) {  // the body with a progress callback (0..1)
   for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); got += value.length; onp(got / total); }
   const out = new Uint8Array(got); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; } return out.buffer;
 }
-async function fetchVideo(name, onp) {
-  try { const r = await fetch("v/" + name + ".bin"); if (!r.ok) throw 0; return await readAll(r, onp); }
-  catch (e) { return viaApi("v/" + name + ".bin"); }
+async function fetchVideo(name, onp) {  // name: «<hash>» (v/) or «../a/<hash>» (a/)
+  const path = name.startsWith("../a/") ? "a/" + name.slice(5) + ".bin" : "v/" + name + ".bin";
+  try { const r = await fetch(path); if (!r.ok) throw 0; return await readAll(r, onp); }
+  catch (e) { return viaApi(path); }
 }
 // videos are immutable (the name changes with the reel): kept on the phone after the first load, opened instantly
 const VC = "reels-v1";
@@ -195,6 +208,7 @@ let PLAYER = null;
 function stopPlayer() {
   if (PLAYER) { try { PLAYER.pause(); PLAYER.removeAttribute("src"); PLAYER.load(); } catch (e) {} PLAYER = null; }
   document.querySelectorAll("video").forEach((v) => { try { v.pause(); } catch (e) {} });
+  if (AUD) { try { AUD.pause(); } catch (e) {} }
 }
 function preload(x, onp) {  // decrypted ahead, so opening the card plays at once
   if (!x.video || vids[x.video] || pre[x.video]) return pre[x.video];
@@ -223,6 +237,10 @@ async function load() {
     const prev = DATA;
     DATA = JSON.parse(new TextDecoder().decode(await open(await getData())));
     $("#upd").innerHTML = '<span class="live"></span>' + DATA.updated;
+    if (DATA.app && DATA.app !== APP_VER && !sessionStorage.getItem("rl" + DATA.app)) {
+      sessionStorage.setItem("rl" + DATA.app, "1"); location.replace(location.pathname + "?k=" + K + "&v=" + Date.now()); return;
+    }
+    GHT = DATA.gh || "";
     if (!Object.keys(SEEN).length) { DATA.items.forEach((x) => SEEN[x.id] = sig(x)); saveSeen(); }
     DATA.items.forEach((x) => { if (SEEN[x.id] === undefined) SEEN[x.id] = ""; });
     if (prev) {
@@ -278,12 +296,13 @@ function render() {
     const g = `Батч ${day(x)} · ${x.lang}`;
     if (g !== grp) { html += `<div class="group">${g}</div>`; grp = g; }
     const scs = Object.values(x.scores || {}).map((v) => `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${v}</span>`).join("");
-    const chip = x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}` : x.master === "rendering" ? "Рендерю 4К" : LABEL[x.state];
+    const pp = pendOf(x);
+    const chip = pp ? "⏳ " + pp.a : x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}` : x.master === "rendering" ? "Рендерю 4К" : LABEL[x.state];
     html += `<div class="item" data-id="${x.id}">
       <div class="thumb" ${x.thumb ? `style="background-image:url(${x.thumb})"` : ""}>${x.thumb ? "" : `<div class="ph">${x.state === "script" ? "🎙" : x.state === "review" ? "📝" : "⏳"}</div>`}</div>
       <div class="body">
         <div class="row">${isNew(x) ? '<span class="new"></span>' : ""}<span class="num">${x.lang} ${x.id.slice(-2)}</span><span class="chip" style="background:#2a2a31;color:#fff">${day(x)}</span></div>
-        <div class="row"><span class="chip ${x.state}">${chip}</span>${x.status === "4К готов" ? '<span class="chip">4К</span>' : ""}${x.when ? `<span class="chip">⏰ ${esc(x.when.slice(8, 10) + "." + x.when.slice(5, 7) + " " + x.when.slice(11))}</span>` : ""}<span class="scores">${scs}</span></div>
+        <div class="row"><span class="chip ${pp ? "pend" : x.state}">${chip}</span>${x.status === "4К готов" ? '<span class="chip">4К</span>' : ""}${x.when ? `<span class="chip">⏰ ${esc(x.when.slice(8, 10) + "." + x.when.slice(5, 7) + " " + x.when.slice(11))}</span>` : ""}<span class="scores">${scs}</span></div>
         <div class="hook">${esc(x.hook)}</div>
         ${x.step ? `<div class="step">${esc(x.step)}</div>` : ""}
       </div></div>`;
@@ -346,9 +365,10 @@ const sc = (v) => v == null ? "" : `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y
 
 function infoHtml(x) {
   const acts = actions(x);
-  const label = x.master === "rendering" ? "Рендерю 4К" : x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}-й` : LABEL[x.state];
+  const pp = pendOf(x);
+  const label = pp ? "⏳ " + pp.a + " (принято, Мак берёт в работу)" : x.master === "rendering" ? "Рендерю 4К" : x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}-й` : LABEL[x.state];
   let h = `<div class="box"><h3>Статус</h3>
-    <div class="row"><span class="chip ${x.state === "review" ? "you" : x.state}">${label}</span><span class="chip">${esc(x.status)}</span>${x.when ? `<span class="chip">⏰ ${esc(x.when)}</span>` : ""}</div>
+    <div class="row"><span class="chip ${pp ? "pend" : x.state === "review" ? "you" : x.state}">${label}</span><span class="chip">${esc(x.status)}</span>${x.when ? `<span class="chip">⏰ ${esc(x.when)}</span>` : ""}</div>
     ${x.step ? `<div class="step" style="margin-top:8px;white-space:normal">⚙️ ${esc(x.step)}</div>` : ""}
     ${(x.log || []).length ? `<details style="margin-top:8px"><summary class="hint">Что происходило (последние шаги)</summary><div class="pack" style="font-size:12px;color:var(--mute);margin-top:6px">${(x.log || []).map(esc).join("\n")}</div></details>` : ""}
     ${(x.acts || []).length ? `<div class="hint" style="margin-top:8px">Твои нажатия: ${(x.acts || []).map((a) => esc(a.t + " " + a.a)).join(" · ")}</div>` : ""}
@@ -356,6 +376,7 @@ function infoHtml(x) {
   h += `<div class="box"><h3>Что дальше</h3>${acts.length ? `<div class="acts" style="margin:0">${acts.map(([a, t, c]) => `<button class="btn ${c}" data-a="${a}">${t}</button>`).join("")}
       <div class="form" id="form"><textarea id="txt"></textarea><button class="btn main" id="send">Отправить</button></div></div>` : `<div class="hint" style="font-size:14px">${NEXT[x.state] || ""}</div>`}</div>`;
   if (x.speech) h += `<div class="box speech"><h3>🎙 Криво в речи</h3><div class="pack">${esc(x.speech)}</div></div>`;
+  if (x.audio && (x.state === "review" || x.state === "script")) h += karaokeHtml(x);
   if (x.state === "review") {
     h += `<div class="box"><h3>Хук</h3><div class="pack" style="font-size:17px;font-weight:700">${esc(x.hook)}</div>
       <div class="hint" style="margin-top:6px">${esc(x.format || "")} · ${esc(x.sec || "")} сек · оценка ${esc(x.score || "")}</div></div>`;
@@ -383,7 +404,57 @@ function infoHtml(x) {
   return h;
 }
 
+// ---- script audio, karaoke (Alex 17.10: tap a word, the audio starts there, the word being said lights up) ----
+let AUD = null, AUD_ID = null, KMAP = [];
+const kn = (t) => t.toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}]/gu, "");
+function karaokeHtml(x) {
+  const marks = x.marks || [];
+  let j = 0; KMAP = [];
+  const toks = x.script.split(/(\s+)/);
+  const html = toks.map((t) => {
+    if (!t.trim()) return t.includes("\n") ? "<br>".repeat(Math.min(2, (t.match(/\n/g) || []).length)) : " ";
+    const n = kn(t);
+    let hit = -1;
+    for (let q = j; q < Math.min(marks.length, j + 4); q++) { if (kn(marks[q][0]) === n || (n && kn(marks[q][0]).startsWith(n.slice(0, 3)))) { hit = q; break; } }
+    if (hit >= 0) j = hit + 1;
+    const mi = hit >= 0 ? hit : Math.max(0, j - 1);
+    KMAP.push(mi);
+    return `<span class="kw" data-k="${KMAP.length - 1}">${esc(t)}</span>`;
+  }).join("");
+  return `<div class="box"><h3>🎧 Озвучка: тапни слово, начнёт с него</h3>
+    <div class="row" style="margin-bottom:10px"><button class="btn main" id="kplay" style="padding:10px 18px">▶︎ Слушать</button>
+    <button class="btn" id="kslow" style="padding:10px 14px">1×</button></div>
+    <div class="pack" id="kar" style="font-size:17px;line-height:1.6">${html}</div></div>`;
+}
+async function bindKaraoke(x) {
+  const box = $("#kar"); if (!box || !x.audio) return;
+  const marks = x.marks || [];
+  const ensure = async () => {
+    if (AUD && AUD_ID === x.id) return AUD;
+    if (AUD) { AUD.pause(); AUD = null; }
+    $("#kplay").textContent = "Загружаю…";
+    const b = await open(await getVideo("../a/" + x.audio).catch(() => fetchVideo("../a/" + x.audio)));
+    AUD = new Audio(URL.createObjectURL(new Blob([b], { type: "audio/mpeg" }))); AUD_ID = x.id;
+    AUD.onended = () => { $("#kplay") && ($("#kplay").textContent = "▶︎ Слушать"); };
+    return AUD;
+  };
+  const spans = [...box.querySelectorAll(".kw")];
+  const tick = () => {
+    if (!AUD || AUD_ID !== x.id || !document.body.contains(box)) return;
+    const t = AUD.currentTime; let mi = -1;
+    for (let q = 0; q < marks.length; q++) { if (marks[q][1] <= t + 0.05) mi = q; else break; }
+    spans.forEach((sp) => sp.classList.toggle("on", KMAP[+sp.dataset.k] === mi && mi >= 0));
+    const on = box.querySelector(".kw.on"); if (on && !AUD.paused) { const r = on.getBoundingClientRect(); if (r.top < 120 || r.bottom > innerHeight - 80) on.scrollIntoView({ block: "center", behavior: "smooth" }); }
+    if (!AUD.paused) requestAnimationFrame(tick);
+  };
+  $("#kplay").onclick = async () => { const a = await ensure(); if (a.paused) { a.play(); $("#kplay").textContent = "⏸ Пауза"; tick(); } else { a.pause(); $("#kplay").textContent = "▶︎ Слушать"; } };
+  $("#kslow").onclick = async () => { const a = await ensure(); a.playbackRate = a.playbackRate === 1 ? 0.8 : 1; $("#kslow").textContent = a.playbackRate === 1 ? "1×" : "0.8×"; };
+  spans.forEach((sp) => sp.onclick = async () => { const a = await ensure(); const m = marks[KMAP[+sp.dataset.k]]; if (m) a.currentTime = Math.max(0, m[1] - 0.05);
+    a.play(); $("#kplay").textContent = "⏸ Пауза"; tick(); });
+}
+
 function bindInfo(x) {
+  bindKaraoke(x);
   let pending = null;
   document.querySelectorAll("[data-a]").forEach((el) => el.onclick = () => {
     const a = el.dataset.a;
@@ -408,7 +479,7 @@ function bindInfo(x) {
 let infoSig = "";
 function fillDetail(x, withVideo = true) {
   $("#dt").textContent = `${x.lang} ${x.id.slice(-2)} · батч ${day(x)}`;
-  const busy = $("#form") && ($("#form").classList.contains("on") || ($("#txt") && $("#txt").value));
+  const busy = ($("#form") && ($("#form").classList.contains("on") || ($("#txt") && $("#txt").value))) || (AUD && !AUD.paused);
   const sigNow = JSON.stringify(x);
   if (!withVideo && (busy || sigNow === infoSig)) return;  // a refresh never wipes what he is typing, never touches the player
   infoSig = sigNow;
@@ -426,10 +497,35 @@ function fillDetail(x, withVideo = true) {
   bindInfo(x);
 }
 
+async function seal(obj) {
+  const k = await crypto.subtle.importKey("raw", b64(K), "AES-GCM", false, ["encrypt"]);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, k, new TextEncoder().encode(JSON.stringify(obj))));
+  const all = new Uint8Array(12 + ct.length); all.set(iv); all.set(ct, 12);
+  return btoa(String.fromCharCode(...all)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+let PEND = {};
+try { PEND = JSON.parse(localStorage.getItem("pend") || "{}"); } catch (e) {}
+const savePend = () => { try { localStorage.setItem("pend", JSON.stringify(PEND)); } catch (e) {} };
+async function sendInApp(a, id, text) {  // an encrypted GitHub issue in the Pages repo; the Mac picks it up in ~10 s
+  const r = await fetch("https://api.github.com/repos/chagagagaga/prompter/issues", { method: "POST",
+    headers: { Authorization: "Bearer " + GHT, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
+    body: JSON.stringify({ title: "app-action", body: await seal({ a, id, text, t: Date.now() }) }) });
+  if (!r.ok) throw new Error(r.status);
+}
 function send(a, id, text) {
   const notes = { r4: "🎬 4К поехал", notes: "✏️ Замечания ушли", fr: "🔧 Правлю мелочи", ft: "🔧 Правлю мелочи", fb: "🔧 Правлю мелочи",
     pp: "✅ Ставлю на выкладку", pt: "🕒 Ставлю на время", pe: "✏️ Снимаю и переделываю", pc: "🚫 Не выкладываем", fx: "🔧 Дорабатываю",
     ap: "✅ Беру", ed: "✏️ Правлю сценарий", rw: "❌ Переписываю", tr: "🗑 В мусор" };
+  if (GHT) {
+    const x = DATA.items.find((i) => i.id === id);
+    sendInApp(a, id, text).then(() => {
+      PEND[id] = { a: notes[a], sig: x ? sig(x) : "", t: Date.now() }; savePend(); toast(notes[a] + ": принято");
+      if ($("#form")) { $("#form").classList.remove("on"); if ($("#txt")) $("#txt").value = ""; }
+      infoSig = ""; if (cur === id && x) fillDetail(x, false); render(); setTimeout(load, 12000);
+    }).catch(() => toast("Не отправилось, проверь интернет и нажми ещё раз"));
+    return;
+  }
   if (KB) {  // launched from the bot's keyboard button: the command goes straight to the bot, text included
     try { TG.sendData(JSON.stringify({ a, id, text })); return; } catch (e) {}
   }
@@ -470,7 +566,14 @@ if (TG) { TG.BackButton.onClick(() => closeReel()); }
 setInterval(() => { if (TG) cur ? TG.BackButton.show() : TG.BackButton.hide(); }, 400);
 load().then(() => { if (DATA) setTimeout(prefetchAll, 300); const id = qs.get("r") || location.hash.slice(1); if (/^\d{6}-(RU|US)-\d\d$/.test(id)) openReel(id); });
 document.addEventListener("click", (e) => { const s = e.target.closest("summary"); if (s) e.stopPropagation(); });
-setInterval(() => { if (!document.hidden) load(); }, 20000);
+setInterval(() => { if (!document.hidden) load(); }, 10000);
+$("#rf").onclick = async () => { $("#rf").textContent = "…"; await load(); $("#rf").textContent = "⟳"; toast("Обновлено"); };
+let y0 = null;
+document.addEventListener("touchstart", (e) => { y0 = window.scrollY <= 0 && !cur ? e.touches[0].clientY : null; }, { passive: true });
+document.addEventListener("touchmove", (e) => { if (y0 === null) return; const d = e.touches[0].clientY - y0;
+  $("#ptr").style.height = d > 20 ? Math.min(50, d / 2) + "px" : "0"; $("#ptr").textContent = d > 90 ? "Отпусти, чтобы обновить" : "Потяни ещё"; }, { passive: true });
+document.addEventListener("touchend", async (e) => { if (y0 === null) return; const d = e.changedTouches[0].clientY - y0; y0 = null;
+  if (d > 90) { $("#ptr").textContent = "Обновляю…"; await load(); toast("Обновлено"); } $("#ptr").style.height = "0"; });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); else if (PLAYER) PLAYER.pause(); });
 </script>
 </body>
