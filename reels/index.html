@@ -140,7 +140,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 <button class="up" id="up">↑</button>
 
 <script>
-const APP_VER = "2026-10-17-g";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-17-h";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -182,6 +182,19 @@ async function viaPages(path, fresh) {
   return r.arrayBuffer();
 }
 async function getData() { try { return await viaApi("data.bin"); } catch (e) { return viaPages("data.bin", true); } }
+// 17.10: the compressed copy (~3x smaller); the plain data.bin stays for old cached copies of this page
+async function getDataGz() { try { return await viaApi("data.gz.bin"); } catch (e) { return viaPages("data.gz.bin", true); } }
+async function gunzip(buf) {
+  const ds = new DecompressionStream("gzip");
+  return new Response(new Blob([buf]).stream().pipeThrough(ds)).arrayBuffer();
+}
+async function freshData() {
+  if (window.DecompressionStream) {
+    try { return JSON.parse(new TextDecoder().decode(await gunzip(await open(await getDataGz())))); } catch (e) {}
+  }
+  return JSON.parse(new TextDecoder().decode(await open(await getData())));
+}
+let LOADING = false;
 async function readAll(r, onp) {  // the body with a progress callback (0..1)
   const total = +r.headers.get("Content-Length") || 0;
   if (!r.body || !total || !onp) return r.arrayBuffer();
@@ -240,7 +253,10 @@ async function load() {
   if (!K) { $("#lock").textContent = "Открой ссылку из бота: в ней ключ."; return; }
   try {
     const prev = DATA;
-    DATA = JSON.parse(new TextDecoder().decode(await open(await getData())));
+    if (LOADING) return; LOADING = true;
+    let fresh; try { fresh = await freshData(); } finally { LOADING = false; }
+    DATA = fresh;
+    try { localStorage.setItem("dcache", JSON.stringify(DATA)); } catch (e) {}  // the next start shows this at once
     $("#upd").innerHTML = '<span class="live"></span>' + DATA.updated;
     if (DATA.app && DATA.app !== APP_VER && !sessionStorage.getItem("rl" + DATA.app)) {
       sessionStorage.setItem("rl" + DATA.app, "1"); location.replace(location.pathname + "?v=" + Date.now() + (qs.get("k") ? "&k=" + K : "") + (location.hash || "")); return;
@@ -254,7 +270,7 @@ async function load() {
     }
     render();
     if (cur) { const x = DATA.items.find((i) => i.id === cur); if (x) fillDetail(x, false); }
-  } catch (e) { if (!DATA) $("#lock").textContent = "Не открылось: неверный ключ или нет сети."; }
+  } catch (e) { if (!DATA) $("#lock").textContent = "Не открылось: неверный ключ или нет сети."; else $("#upd").innerHTML = "⚠️ нет сети · " + DATA.updated; }
 }
 
 function match(x, q) {
@@ -573,10 +589,14 @@ $("#back").onclick = () => closeReel();
 $("#prev").onclick = () => step(-1); $("#next").onclick = () => step(1);
 if (TG) { TG.BackButton.onClick(() => closeReel()); }
 setInterval(() => { if (TG) cur ? TG.BackButton.show() : TG.BackButton.hide(); }, 400);
+try {  // instant start: the last data saved on the phone, the fresh one follows in a second or two
+  const c = localStorage.getItem("dcache");
+  if (c && K) { DATA = JSON.parse(c); GHT = DATA.gh || ""; $("#upd").innerHTML = "⏳ " + DATA.updated; render(); }
+} catch (e) {}
 load().then(() => { if (DATA) setTimeout(prefetchAll, 300); const id = qs.get("r") || location.hash.slice(1); if (/^\d{6}-(RU|US)-\d\d$/.test(id)) openReel(id); });
 document.addEventListener("click", (e) => { const s = e.target.closest("summary"); if (s) e.stopPropagation(); });
 setInterval(() => { if (!document.hidden) load(); }, 10000);
-$("#rf").onclick = async () => { $("#rf").textContent = "…"; await load(); $("#rf").textContent = "⟳"; toast("Обновлено"); };
+$("#rf").onclick = async () => { $("#rf").textContent = "…"; try { await load(); toast("Обновлено"); } finally { $("#rf").textContent = "⟳"; } };
 let y0 = null;
 document.addEventListener("touchstart", (e) => { y0 = window.scrollY <= 0 && !cur ? e.touches[0].clientY : null; }, { passive: true });
 document.addEventListener("touchmove", (e) => { if (y0 === null) return; const d = e.touches[0].clientY - y0;
