@@ -140,7 +140,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 <button class="up" id="up">↑</button>
 
 <script>
-const APP_VER = "2026-10-18-b";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-18-c";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -148,7 +148,7 @@ if (TG) { TG.ready(); TG.expand(); try { TG.setHeaderColor("#0b0b0d"); TG.setBac
 const qs = new URLSearchParams(location.search), hs = new URLSearchParams(location.hash.slice(1));
 let K = qs.get("k") || hs.get("k");
 try { if (K) localStorage.setItem("rk", K); else K = localStorage.getItem("rk"); } catch (e) {}
-const TABS = [["scripts", "Сценарии"], ["status", "Статус"], ["you", "Ждут тебя"], ["work", "В работе"], ["failed", "Не прошли"], ["done", "Готовы"], ["all", "Все"]];
+const TABS = [["scripts", "Сценарии"], ["status", "Статус"], ["you", "Ждут тебя"], ["work", "В работе"], ["failed", "Не прошли"], ["done", "Готовы"], ["off", "🚫 Не выкладываем"], ["all", "Все"]];
 const LABEL = { you: "Ждёт тебя", work: "Делается", queue: "В очереди", failed: "Не прошёл", done: "Готов", off: "Не выкладываем", script: "Ждёт записи", review: "Сценарий на проверку" };
 let DATA = null, tab = "you", lang = "", cur = null, shown = [];
 let SEEN = {};
@@ -354,6 +354,16 @@ async function video(x) {
 
 function actions(x) {
   const b = [];
+  // 18.10, Alex: «🚫 Не выкладываем» on every reel card (he may change his mind at any stage), «↩️ Вернуть» from there
+  if (x.state === "off") return [["un", "↩️ Вернуть из «Не выкладываем»", "main"]];
+  if (x.state !== "review" && x.state !== "script") {
+    const r = actionsBase(x);
+    return r.some((a) => a[0] === "pc") ? r : r.concat([["pc", "🚫 Не выкладываем", "bad"]]);
+  }
+  return actionsBase(x);
+}
+function actionsBase(x) {
+  const b = [];
   if (x.state === "review") {
     b.push(["ap", "✅ Беру", "good"]);
     b.push(["ed", "✏️ Есть правки", ""]);
@@ -383,7 +393,7 @@ function actions(x) {
   return b;
 }
 const TEXT_ACTS = ["notes", "pe", "pt", "ed"];
-const CONFIRM = { pc: "Точно не выкладываем?", tr: "Точно в мусор?", rw: "Переписать сценарий с нуля?" };
+const CONFIRM = { pc: "Убрать в «Не выкладываем»? Вернуть можно в любой момент.", tr: "Точно в мусор?", rw: "Переписать сценарий с нуля?" };
 const NEXT = { work: "Ролик делается. Кнопки появятся, когда он будет готов и пройдёт ревью.",
   queue: "Ролик в очереди на монтаж. Кнопки появятся, когда он будет готов.",
   script: "Сценарий одобрен, ждёт записи. После записи ролик смонтируется сам.", off: "Решили не выкладывать." };
@@ -562,8 +572,8 @@ async function sendInApp(a, id, text) {  // an encrypted GitHub issue in the Pag
 }
 function send(a, id, text) {
   const notes = { r4: "🎬 4К поехал", notes: "✏️ Замечания ушли", fr: "🔧 Правлю мелочи", ft: "🔧 Правлю мелочи", fb: "🔧 Правлю мелочи",
-    pp: "✅ Ставлю на выкладку", pt: "🕒 Ставлю на время", pe: "✏️ Снимаю и переделываю", pc: "🚫 Не выкладываем", fx: "🔧 Дорабатываю",
-    ap: "✅ Беру", ed: "✏️ Правлю сценарий", rw: "❌ Переписываю", tr: "🗑 В мусор", fs: "🔧 Правлю отмеченные" };
+    pp: "✅ Ставлю на выкладку", pt: "🕒 Ставлю на время", pe: "✏️ Снимаю и переделываю", pc: "🚫 В «Не выкладываем»", fx: "🔧 Дорабатываю",
+    ap: "✅ Беру", ed: "✏️ Правлю сценарий", rw: "❌ Переписываю", tr: "🗑 В мусор", fs: "🔧 Правлю отмеченные", un: "↩️ Возвращаю" };
   if (GHT) {
     const x = DATA.items.find((i) => i.id === id);
     sendInApp(a, id, text).then(() => {
