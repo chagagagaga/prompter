@@ -144,7 +144,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 <button class="up" id="up">↑</button>
 
 <script>
-const APP_VER = "2026-10-18-f";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-18-g";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -253,8 +253,13 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 const pack = (s) => esc(s).replace(/&lt;b&gt;/g, "<b>").replace(/&lt;\/b&gt;/g, "</b>").replace(/&lt;i&gt;/g, "<i>").replace(/&lt;\/i&gt;/g, "</i>");
 const toast = (t) => { const e = $("#toast"); e.textContent = t; e.classList.add("on"); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove("on"), 3200); };
 // 18.10, Alex: «нажал рендер 4К, а он остался жить в "Ждут тебя"»: a reel he already acted on moves to «В работе» at once
-const eff = (x) => ["you", "failed"].includes(x.state) && pendOf(x) ? "work" : x.state;
-const st = (x) => eff(x) === "queue" || eff(x) === "work" ? "work" : ["review", "script"].includes(x.state) ? "scripts" : x.state;  // «off» only in «Все» and «Статус»
+// 18.10, Alex: «нажал Не выкладываем, а карточка не перемещается, сделай моментально»: the card moves at once
+const eff = (x) => { const p = pendOf(x); if (!p) return x.state;
+  if (p.c === "pc") return "off";
+  if (p.c === "un") return x.status === "4К готов" || x.state === "off" ? "you" : x.state;
+  if (["pp", "pt"].includes(p.c) && x.state === "you") return "done";
+  return ["you", "failed"].includes(x.state) ? "work" : x.state; };
+const st = (x) => { const e = eff(x); return e === "queue" || e === "work" ? "work" : ["review", "script"].includes(x.state) ? "scripts" : e; };
 
 async function load() {
   if (!K) { $("#lock").textContent = "Открой ссылку из бота: в ней ключ."; return; }
@@ -360,7 +365,7 @@ async function video(x) {
 function actions(x) {
   const b = [];
   // 18.10, Alex: «🚫 Не выкладываем» on every reel card (he may change his mind at any stage), «↩️ Вернуть» from there
-  if (x.state === "off") return [["un", "↩️ Вернуть из «Не выкладываем»", "main"]];
+  if (eff(x) === "off") return [["un", "↩️ Вернуть из «Не выкладываем»", "main"]];
   if (x.state !== "review" && x.state !== "script") {
     const r = actionsBase(x);
     return r.some((a) => a[0] === "pc") ? r : r.concat([["pc", "🚫 Не выкладываем", "bad"]]);
@@ -595,7 +600,7 @@ function send(a, id, text) {
   if (GHT) {
     const x = DATA.items.find((i) => i.id === id);
     sendInApp(a, id, text).then(() => {
-      PEND[id] = { a: notes[a], sig: x ? sig(x) : "", t: Date.now() }; savePend(); toast(notes[a] + ": принято");
+      PEND[id] = { a: notes[a], c: a, sig: x ? sig(x) : "", t: Date.now() }; savePend(); toast(notes[a] + ": принято");
       if ($("#form")) { $("#form").classList.remove("on"); if ($("#txt")) $("#txt").value = ""; }
       infoSig = ""; if (cur === id && x) fillDetail(x, false); render(); setTimeout(load, 12000);
     }).catch(() => toast("Не отправилось, проверь интернет и нажми ещё раз"));
