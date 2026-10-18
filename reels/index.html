@@ -117,8 +117,8 @@ details[open] > summary h3::after { content: " ⌄"; }
 .srow .go { color: var(--mute); font-size: 18px; }
 .live { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-right: 6px; animation: pl 1.6s infinite; }
 @keyframes pl { 50% { opacity: .3; } }
-  .player.big { position: fixed; inset: 0; z-index: 99; background: #000; margin: 0; border-radius: 0; height: 100vh !important; }
-  .player.big video { width: 100%; height: 100%; object-fit: contain; }
+  #bigv { position: fixed; inset: 0; z-index: 9999; background: #000; display: grid; place-items: center; }
+  #bigv video { width: 100vw; height: 100vh; height: 100dvh; object-fit: contain; background: #000; }
   .bigx { position: fixed; top: calc(env(safe-area-inset-top) + 12px); right: 16px; z-index: 100; width: 44px; height: 44px;
     border-radius: 22px; border: 0; background: rgba(255,255,255,.2); color: #fff; font-size: 22px; }
 </style>
@@ -144,7 +144,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 <button class="up" id="up">↑</button>
 
 <script>
-const APP_VER = "2026-10-18-e";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-18-f";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -224,6 +224,7 @@ const pre = {};
 let PLAYER = null;
 function stopPlayer() {
   if (PLAYER) { try { PLAYER.pause(); PLAYER.removeAttribute("src"); PLAYER.load(); } catch (e) {} PLAYER = null; }
+  const bv = document.getElementById("bigv"); if (bv) bv.remove();
   document.querySelectorAll("video").forEach((v) => { try { v.pause(); } catch (e) {} });
   if (AUD) { try { AUD.pause(); } catch (e) {} }
 }
@@ -545,16 +546,20 @@ function fillDetail(x, withVideo = true) {
     $("#detail").innerHTML = (x.state === "review" ? "" : `<div class="player" id="player"></div>
       <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="more" id="fs" style="padding:0">⛶ На весь экран</button></div>`) + `<div id="info"></div>`;
     if (x.state !== "review") video(x);
-    // 18.10, Alex: «в RU 4 на весь экран не открывается»: the tap came while the video was still loading (no element /
-    // no metadata yet, iOS refuses) and nothing happened. Now: wait for it, then native fullscreen, else a full-page view
+    // 18.10, Alex: «не работает кнопка на весь экран». Native fullscreen is refused inside Telegram / before metadata, and a
+    // fixed player inside the card sheet stays clipped by it. The video element moves into its own layer on <body>
+    // (all screen, black, ✕ to close, the same playback continues), then back into the card.
     $("#fs") && ($("#fs").onclick = () => {
-      const go = (v) => { try { if (v.webkitEnterFullscreen) return v.webkitEnterFullscreen(); if (v.requestFullscreen) return v.requestFullscreen().catch(() => big(v)); } catch (e) {} big(v); };
-      const big = (v) => { const pl = $("#player"); pl.classList.add("big"); v.play().catch(() => {});
-        if (!pl.querySelector(".bigx")) { const x = document.createElement("button"); x.className = "bigx"; x.textContent = "✕";
-          x.onclick = (e) => { e.stopPropagation(); pl.classList.remove("big"); x.remove(); }; pl.appendChild(x); } };
       const v = $("#player video");
       if (!v) { toast("Видео ещё грузится, нажми через пару секунд"); return; }
-      if (v.readyState >= 1) go(v); else { toast("Загружаю видео…"); v.addEventListener("loadedmetadata", () => go(v), { once: true }); v.load(); }
+      const lay = document.createElement("div");
+      lay.id = "bigv";
+      lay.innerHTML = '<button class="bigx">✕</button>';
+      document.body.appendChild(lay);
+      lay.insertBefore(v, lay.firstChild);
+      try { if (window.Telegram && Telegram.WebApp) Telegram.WebApp.expand(); } catch (e) {}
+      v.play().catch(() => {});
+      lay.querySelector(".bigx").onclick = () => { const pl = $("#player"); if (pl) pl.appendChild(v); else v.pause(); lay.remove(); };
     });
   }
   $("#info").innerHTML = infoHtml(x);
