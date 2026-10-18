@@ -140,7 +140,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 <button class="up" id="up">↑</button>
 
 <script>
-const APP_VER = "2026-10-18-a";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-18-b";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -425,10 +425,14 @@ function infoHtml(x) {
     for (const r of s.rows || []) h += `<div style="margin:0 0 12px"><div class="row" style="gap:8px"><b style="font-size:14px">${esc(r.k)}</b>${sc(r.score)}</div>
       <div class="pack" style="font-size:13.5px;color:#c9c9d1;margin-top:4px;line-height:1.5">${esc(r.text)}</div></div>`;
     if (s.head) h += `<div style="font-size:14px;font-weight:700;margin:2px 0 10px">${esc(s.head)}</div>`;
+    // 18.10, Alex: tick the notes that matter, «Поправить выбранные» sends only those (fs), the rest stays as is
+    const pick = /^Мелочи ролика/.test(s.t) && x.state !== "work" && x.state !== "queue";
     if ((s.bullets || []).length) h += s.bullets.map((l) => { const m = /^\[(\d+)\/10\]\s*(.*)$/s.exec(l) || [null, "", l];
       const v = +m[1]; const col = v >= 8 ? "#ff7a71" : v >= 6 ? "var(--accent)" : "var(--mute)";
-      return `<div class="row" style="align-items:flex-start;gap:10px;margin-bottom:10px;flex-wrap:nowrap">
-        <span class="sc" style="color:${col};flex:none">${v ? v + "/10" : "•"}</span><div class="pack" style="font-size:14px;line-height:1.45">${esc(m[2])}</div></div>`; }).join("");
+      return `<label class="row" style="align-items:flex-start;gap:10px;margin-bottom:10px;flex-wrap:nowrap">
+        ${pick ? `<input type="checkbox" class="selnote" data-t="${encodeURIComponent(l)}" style="width:20px;height:20px;flex:none;margin-top:1px">` : ""}
+        <span class="sc" style="color:${col};flex:none">${v ? v + "/10" : "•"}</span><div class="pack" style="font-size:14px;line-height:1.45">${esc(m[2])}</div></label>`; }).join("")
+      + (pick ? `<button class="btn" id="fsel" style="width:100%;margin:4px 0 8px">🔧 Поправить выбранные</button>` : "");
     else if ((s.details || []).length) h += `<div class="hint" style="margin-bottom:8px">Короткий список готовится, пока подробно:</div>`;
     if ((s.details || []).length) h += `<details style="margin-top:6px"><summary class="hint" style="font-size:13px">Подробнее от ревьюеров (${s.details.length})</summary>
       ${s.details.map((l) => `<div class="pack" style="font-size:13px;line-height:1.5;margin:10px 0;padding-left:10px;border-left:2px solid var(--line)">${esc(l).replace(/\n→ /g, "<br><b>→ Как исправить:</b> ")}</div>`).join("")}</details>`;
@@ -544,6 +548,12 @@ async function seal(obj) {
 let PEND = {};
 try { PEND = JSON.parse(localStorage.getItem("pend") || "{}"); } catch (e) {}
 const savePend = () => { try { localStorage.setItem("pend", JSON.stringify(PEND)); } catch (e) {} };
+document.addEventListener("click", (e) => {  // «Поправить выбранные»: only the ticked notes go to the rework
+  if (!e.target || e.target.id !== "fsel" || !cur) return;
+  const t = [...document.querySelectorAll(".selnote:checked")].map((c) => "- " + decodeURIComponent(c.dataset.t)).join("\n");
+  if (!t) { toast("Отметь галочками, что править"); return; }
+  send("fs", cur, t);
+});
 async function sendInApp(a, id, text) {  // an encrypted GitHub issue in the Pages repo; the Mac picks it up in ~10 s
   const r = await fetch("https://api.github.com/repos/chagagagaga/prompter/issues", { method: "POST",
     headers: { Authorization: "Bearer " + GHT, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
@@ -553,7 +563,7 @@ async function sendInApp(a, id, text) {  // an encrypted GitHub issue in the Pag
 function send(a, id, text) {
   const notes = { r4: "🎬 4К поехал", notes: "✏️ Замечания ушли", fr: "🔧 Правлю мелочи", ft: "🔧 Правлю мелочи", fb: "🔧 Правлю мелочи",
     pp: "✅ Ставлю на выкладку", pt: "🕒 Ставлю на время", pe: "✏️ Снимаю и переделываю", pc: "🚫 Не выкладываем", fx: "🔧 Дорабатываю",
-    ap: "✅ Беру", ed: "✏️ Правлю сценарий", rw: "❌ Переписываю", tr: "🗑 В мусор" };
+    ap: "✅ Беру", ed: "✏️ Правлю сценарий", rw: "❌ Переписываю", tr: "🗑 В мусор", fs: "🔧 Правлю отмеченные" };
   if (GHT) {
     const x = DATA.items.find((i) => i.id === id);
     sendInApp(a, id, text).then(() => {
