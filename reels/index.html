@@ -117,6 +117,8 @@ details[open] > summary h3::after { content: " ⌄"; }
 .srow .go { color: var(--mute); font-size: 18px; }
 .live { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-right: 6px; animation: pl 1.6s infinite; }
 @keyframes pl { 50% { opacity: .3; } }
+  .player.big { position: fixed; inset: 0; z-index: 99; background: #000; margin: 0; border-radius: 0; height: 100vh !important; }
+  .player.big video { width: 100%; height: 100%; object-fit: contain; }
 </style>
 </head>
 <body>
@@ -140,7 +142,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 <button class="up" id="up">↑</button>
 
 <script>
-const APP_VER = "2026-10-18-c";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-18-d";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -541,8 +543,15 @@ function fillDetail(x, withVideo = true) {
     $("#detail").innerHTML = (x.state === "review" ? "" : `<div class="player" id="player"></div>
       <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="more" id="fs" style="padding:0">⛶ На весь экран</button></div>`) + `<div id="info"></div>`;
     if (x.state !== "review") video(x);
-    $("#fs") && ($("#fs").onclick = () => { const v = $("#player video"); if (!v) return;
-      if (v.webkitEnterFullscreen) v.webkitEnterFullscreen(); else if (v.requestFullscreen) v.requestFullscreen(); });
+    // 18.10, Alex: «в RU 4 на весь экран не открывается»: the tap came while the video was still loading (no element /
+    // no metadata yet, iOS refuses) and nothing happened. Now: wait for it, then native fullscreen, else a full-page view
+    $("#fs") && ($("#fs").onclick = () => {
+      const go = (v) => { try { if (v.webkitEnterFullscreen) return v.webkitEnterFullscreen(); if (v.requestFullscreen) return v.requestFullscreen().catch(() => big(v)); } catch (e) {} big(v); };
+      const big = (v) => { const pl = $("#player"); pl.classList.toggle("big"); if (pl.classList.contains("big")) v.play().catch(() => {}); };
+      const v = $("#player video");
+      if (!v) { toast("Видео ещё грузится, нажми через пару секунд"); return; }
+      if (v.readyState >= 1) go(v); else { toast("Загружаю видео…"); v.addEventListener("loadedmetadata", () => go(v), { once: true }); v.load(); }
+    });
   }
   $("#info").innerHTML = infoHtml(x);
   bindInfo(x);
