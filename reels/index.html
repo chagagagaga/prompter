@@ -152,7 +152,22 @@ details[open] > summary h3::after { content: " ⌄"; }
 <button class="up" id="up">↑</button>
 
 <script>
-const APP_VER = "2026-10-19-i";  // bump on every change: an old copy cached by Telegram reloads itself
+// 19.10: a broken script left the app on «Загружаю…» forever. This tiny block runs first and on its own: any error or a
+// list still empty after 25 s shows what happened and a reload button instead of an endless spinner.
+(function () {
+  function show(msg) {
+    var l = document.getElementById("lock");
+    if (!l || !document.body.contains(l)) return;
+    l.innerHTML = "Приложение не загрузилось: " + String(msg).replace(/[<>&]/g, "") +
+      '<br><br><button onclick="location.reload()" style="padding:10px 18px;border-radius:10px;border:0;font-weight:700">Обновить</button>';
+  }
+  window.addEventListener("error", function (e) { show(e.message || "ошибка"); });
+  window.addEventListener("unhandledrejection", function (e) { show((e.reason && e.reason.message) || "ошибка сети"); });
+  setTimeout(function () { var l = document.getElementById("lock"); if (l && /Загружаю/.test(l.textContent)) show("долго нет ответа (сеть?)"); }, 25000);
+})();
+</script>
+<script>
+const APP_VER = "2026-10-19-j";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -290,7 +305,7 @@ const sgOf = (x) => { const p = pendOf(x);
   if (["Выбран (правка)", "Выбран (переписан)"].includes(x.status)) return "you";
   return x.sg || "you"; };
 const side = (x) => x.state === "review" && ["trash", "reserve", "ok"].includes(sgOf(x));  // decided: not on the main desk
-const st = (x) => { const e = eff(x); if (e === "done" && x.pend) return "plan"; if (e === "done" && x.out) return "out"; if (e === "done" && x.when && ["Запланирован", "▶️ К выкладке"].includes(x.status)) return "plan";  // a proposed time is not a plan return e === "queue" || e === "work" ? "work" : ["review", "script"].includes(x.state) ? "scripts" : e; };
+const st = (x) => { const e = eff(x); if (e === "done" && x.pend) return "plan"; if (e === "done" && x.out) return "out"; if (e === "done" && x.when && ["Запланирован", "▶️ К выкладке"].includes(x.status)) return "plan"; return e === "queue" || e === "work" ? "work" : ["review", "script"].includes(x.state) ? "scripts" : e; };
 
 async function load() {
   if (!K) { $("#lock").textContent = "Открой ссылку из бота: в ней ключ."; return; }
