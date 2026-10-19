@@ -35,6 +35,11 @@ h1 { font-size: 20px; margin: 0; letter-spacing: -.3px; flex: 1; }
 .tab b { color: var(--text); margin-left: 4px; }
 .tab.on { background: var(--text); color: #000; border-color: var(--text); }
 .tab.on b { color: #000; }
+.tabs.sub { margin-top: 8px; }
+.tabs.sub:empty { display: none; }
+.tabs.sub .tab { padding: 5px 10px; font-size: 13px; }
+.tab i { font-style: normal; color: var(--mute); font-size: 11px; margin-left: 5px; }
+.tab.on i { color: #333; }
 .tab[data-t="status"] { background: rgba(10,132,255,.18); border-color: rgba(10,132,255,.5); color: #7cbcff; }
 .tab[data-t="status"] b { color: #cfe6ff; }
 .tab[data-t="status"].on { background: var(--blue); border-color: var(--blue); color: #fff; }
@@ -131,6 +136,7 @@ details[open] > summary h3::after { content: " ⌄"; }
     <div class="lang"><button data-l="" class="on">Все</button><button data-l="RU">RU</button><button data-l="EN">EN</button></div>
   </div>
   <div class="tabs" id="tabs"></div>
+  <div class="tabs sub" id="stabs"></div>
 </header>
 <div class="ptr" id="ptr">Отпусти, чтобы обновить</div>
 <main id="list"><div class="lock" id="lock">Загружаю…</div></main>
@@ -144,7 +150,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 <button class="up" id="up">↑</button>
 
 <script>
-const APP_VER = "2026-10-18-g";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-19-a";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -161,7 +167,8 @@ const saveSeen = () => { try { localStorage.setItem("seen", JSON.stringify(SEEN)
 const sig = (x) => x.state + "|" + x.status + "|" + (x.video || "");
 const pendOf = (x) => { const p = PEND[x.id]; if (!p) return null;
   if (p.sig !== sig(x) || Date.now() - p.t > 20 * 60000) { delete PEND[x.id]; savePend(); return null; } return p; };
-const isNew = (x) => SEEN[x.id] !== undefined && SEEN[x.id] !== sig(x) && ["you", "failed", "done", "review"].includes(x.state);
+const isNew = (x) => SEEN[x.id] !== undefined && SEEN[x.id] !== sig(x) && ["you", "failed", "done", "review"].includes(x.state)
+  && !["trash", "reserve"].includes(x.sg);
 const vids = {};
 const $ = (s) => document.querySelector(s);
 const b64 = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
@@ -259,6 +266,15 @@ const eff = (x) => { const p = pendOf(x); if (!p) return x.state;
   if (p.c === "un") return x.status === "4К готов" || x.state === "off" ? "you" : x.state;
   if (["pp", "pt"].includes(p.c) && x.state === "you") return "done";
   return ["you", "failed"].includes(x.state) ? "work" : x.state; };
+// 19.10, Alex: «сценарии: я все разобрал или какие-то ещё висят?»: sections inside «Сценарии», a pressed button
+// moves the card at once (like the reels), the sheet's answer takes over when it comes
+const SUBS = [["you", "Ждут тебя"], ["edit", "На правке"], ["ok", "✅ Одобрены"], ["trash", "🗑 Мусор"], ["reserve", "Резерв"]];
+const SUBN = { you: "Ждут тебя", edit: "На правке", ok: "✅ Одобрены, ждут записи", trash: "🗑 Мусор", reserve: "Резерв" };
+let sub = "you";
+const sgOf = (x) => { const p = pendOf(x);
+  if (p && x.state === "review") { if (p.c === "ap") return "ok"; if (p.c === "tr") return "trash"; if (["ed", "rw"].includes(p.c)) return "edit"; }
+  return x.state === "script" ? "ok" : x.sg || "you"; };
+const side = (x) => x.state === "review" && ["trash", "reserve", "ok"].includes(sgOf(x));  // decided: not on the main desk
 const st = (x) => { const e = eff(x); return e === "queue" || e === "work" ? "work" : ["review", "script"].includes(x.state) ? "scripts" : e; };
 
 async function load() {
@@ -319,21 +335,27 @@ function statusView(base) {
 function render() {
   const q = $("#q").value.trim();
   const base = DATA.items.filter((x) => (!lang || x.lang === lang) && match(x, q));
-  const cnt = (t) => base.filter((x) => t === "all" || (t === "status" ? ["work", "queue"].includes(eff(x)) : st(x) === t)).length;
+  const cnt = (t) => base.filter((x) => t === "all" ? !(st(x) === "scripts" && ["trash", "reserve"].includes(sgOf(x)))
+    : t === "status" ? ["work", "queue"].includes(eff(x)) : t === "scripts" ? st(x) === t && ["you", "edit"].includes(sgOf(x)) : st(x) === t).length;
   $("#tabs").innerHTML = TABS.map(([k, v]) => `<button class="tab ${k === tab ? "on" : ""}" data-t="${k}">${v}<b>${cnt(k)}</b></button>`).join("");
-  if (tab === "status" && !q) { shown = base; statusView(base); return; }
-  shown = base.filter((x) => tab === "all" || tab === "status" || q || st(x) === tab);
+  const scr = base.filter((x) => st(x) === "scripts");
+  $("#stabs").innerHTML = tab !== "scripts" || q ? "" : SUBS.map(([k, v]) => { const xs = scr.filter((x) => sgOf(x) === k);
+    const by = lang ? "" : ["RU", "EN"].map((l) => `<i>${l} ${xs.filter((x) => x.lang === l).length}</i>`).join("");
+    return `<button class="tab ${k === sub ? "on" : ""}" data-s="${k}">${v}<b>${xs.length}</b>${by}</button>`; }).join("");
+  if (tab === "status" && !q) { shown = base.filter((x) => !side(x)); statusView(shown); return; }
+  shown = base.filter((x) => q || (tab === "all" ? !(st(x) === "scripts" && ["trash", "reserve"].includes(sgOf(x)))
+    : tab === "scripts" ? st(x) === "scripts" && sgOf(x) === sub : st(x) === tab));
   if (q && !shown.length) shown = base;
   const order = { you: 0, work: 1, queue: 2, review: 3, failed: 4, script: 5, done: 6, off: 7 };
   shown.sort((a, b) => (tab === "work" ? a.queue_pos - b.queue_pos || (order[a.state] - order[b.state]) : 0) || b.id.localeCompare(a.id));
-  if (!shown.length) { $("#list").innerHTML = `<div class="empty">${tab === "you" ? "Ничего не ждёт тебя 🎉" : "Пусто"}</div>`; return; }
+  if (!shown.length) { $("#list").innerHTML = `<div class="empty">${tab === "you" ? "Ничего не ждёт тебя 🎉" : tab === "scripts" && sub === "you" ? "Все сценарии разобраны 🎉" : "Пусто"}</div>`; return; }
   let html = "", grp = "";
   for (const x of shown) {
-    const g = `Батч ${day(x)} · ${x.lang}`;
+    const g = `Батч ${day(x)} · ${x.lang}` + (tab === "scripts" && !q ? ` · ${SUBN[sgOf(x)]}` : "");
     if (g !== grp) { html += `<div class="group">${g}</div>`; grp = g; }
     const scs = Object.values(x.scores || {}).map((v) => `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${Number(v) || 0}</span>`).join("");
     const pp = pendOf(x);
-    const chip = pp ? "⏳ " + pp.a : x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}` : x.master === "rendering" ? "Рендерю 4К" : LABEL[x.state];
+    const chip = pp ? "⏳ " + pp.a : x.state === "review" && x.sg && x.sg !== "you" ? x.status : x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}` : x.master === "rendering" ? "Рендерю 4К" : LABEL[x.state];
     html += `<div class="item" data-id="${x.id}">
       <div class="thumb" ${x.thumb ? `style="background-image:url(${x.thumb})"` : ""}>${x.thumb ? "" : `<div class="ph">${x.state === "script" ? "🎙" : x.state === "review" ? "📝" : "⏳"}</div>`}</div>
       <div class="body">
@@ -378,7 +400,7 @@ function actionsBase(x) {
     b.push(["ap", "✅ Беру", "good"]);
     b.push(["ed", "✏️ Есть правки", ""]);
     b.push(["rw", "❌ Не беру, иди сам переписывай", ""]);
-    b.push(["tr", "🗑 Мусор", "bad"]);
+    if (x.sg !== "trash") b.push(["tr", "🗑 Мусор", "bad"]);
   } else if (x.state === "work" || x.state === "queue") {
     return [];
   } else if (x.status === "Смонтирован" && x.video) {
@@ -633,6 +655,8 @@ function step(d) {
 }
 $("#list").onclick = (e) => { const it = e.target.closest(".item"); if (it) openReel(it.dataset.id); };
 try { tab = localStorage.getItem("tab") || "you"; } catch (e) {}
+try { sub = localStorage.getItem("sub") || "you"; } catch (e) {}
+$("#stabs").onclick = (e) => { const t = e.target.closest(".tab"); if (t) { sub = t.dataset.s; try { localStorage.setItem("sub", sub); } catch (e) {} render(); window.scrollTo(0, 0); } };
 $("#tabs").onclick = (e) => { const t = e.target.closest(".tab"); if (t) { tab = t.dataset.t; try { localStorage.setItem("tab", tab); } catch (e) {} render(); window.scrollTo(0, 0); } };
 document.querySelectorAll(".lang button").forEach((b) => b.onclick = () => {
   document.querySelectorAll(".lang button").forEach((x) => x.classList.remove("on")); b.classList.add("on"); lang = b.dataset.l; render(); });
