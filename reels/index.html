@@ -150,7 +150,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 <button class="up" id="up">↑</button>
 
 <script>
-const APP_VER = "2026-10-19-a";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-19-b";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -273,9 +273,13 @@ const SUBN = { you: "Ждут тебя", edit: "На правке", ok: "✅ О�
 let sub = "you";
 const sgOf = (x) => { const p = pendOf(x);
   if (p && x.state === "review") { if (p.c === "ap") return "ok"; if (p.c === "tr") return "trash"; if (["ed", "rw"].includes(p.c)) return "edit"; }
-  return x.state === "script" ? "ok" : x.sg || "you"; };
+  // 19.10: decided by the status too, so a fix needs no bot restart: an approved script is «Одобрены» until recorded,
+  // an edited / rewritten one is back with Alex
+  if (x.state === "script" || x.status === "✅ Апрув") return "ok";
+  if (["Выбран (правка)", "Выбран (переписан)"].includes(x.status)) return "you";
+  return x.sg || "you"; };
 const side = (x) => x.state === "review" && ["trash", "reserve", "ok"].includes(sgOf(x));  // decided: not on the main desk
-const st = (x) => { const e = eff(x); return e === "queue" || e === "work" ? "work" : ["review", "script"].includes(x.state) ? "scripts" : e; };
+const st = (x) => { if (x.status === "✅ Апрув" && !pendOf(x)) return "scripts"; const e = eff(x); return e === "queue" || e === "work" ? "work" : ["review", "script"].includes(x.state) ? "scripts" : e; };
 
 async function load() {
   if (!K) { $("#lock").textContent = "Открой ссылку из бота: в ней ключ."; return; }
