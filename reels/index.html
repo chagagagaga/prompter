@@ -126,6 +126,8 @@ details[open] > summary h3::after { content: " ⌄"; }
   #bigv video { width: 100vw; height: 100vh; height: 100dvh; object-fit: contain; background: #000; }
   .bigx { position: fixed; top: calc(env(safe-area-inset-top) + 12px); right: 16px; z-index: 100; width: 44px; height: 44px;
     border-radius: 22px; border: 0; background: rgba(255,255,255,.2); color: #fff; font-size: 22px; }
+.pubs { margin-top: 6px; font-size: 13px; line-height: 1.5; }
+.pub.out { color: var(--text, inherit); } .pub.fail { color: #e5484d; } .pub .mute { opacity: .6; } .pub a { margin-left: 4px; }
 </style>
 </head>
 <body>
@@ -150,7 +152,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 <button class="up" id="up">↑</button>
 
 <script>
-const APP_VER = "2026-10-19-e";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-19-f";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -164,6 +166,9 @@ const dm = (t) => t.slice(8, 10) + "." + t.slice(5, 7) + " " + t.slice(11, 16);
 const lbl = (x) => x.state === "done" && x.out ? "📢 Опубликован" : x.state === "done" && x.when ? "🗓 Запланирован" : LABEL[x.state];
 const okT = (t) => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(t || "");
 const pubChips = (x) => (okT(x.when) ? `<span class="chip">🗓 План ${dm(x.when)}</span>` : "") + (okT(x.out) ? `<span class="chip">📢 Выложен ${dm(x.out)}</span>` : "");
+// 19.10: every platform with its own status and time: «✅ TikTok 19.10 20:21 · авто», «🗓 Instagram 20.10 18:00 · вручную»
+const PICON = { out: "✅", plan: "🗓", fail: "⚠️" };
+const pubLines = (x) => (x.pubs || []).map((p) => `<div class="pub ${p.st}">${PICON[p.st] || "🗓"} <b>${esc(p.p)}</b> ${okT(p.t) ? dm(p.t) : ""}${p.st === "fail" ? " · не вышел" : ""} <span class="mute">· ${esc(p.how)}</span>${p.url ? ` <a href="${esc(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">открыть</a>` : ""}</div>`).join("");
 const pubText = (x) => [okT(x.when) ? "🗓 План " + dm(x.when) : "", okT(x.out) ? "📢 Выложен " + dm(x.out) : ""].filter(Boolean).join(" · ");
 const LABEL = { you: "Ждёт тебя", work: "Делается", queue: "В очереди", failed: "Не прошёл", done: "Ждёт публикации", out: "📢 Опубликован", off: "Не выкладываем", script: "Ждёт записи", review: "Сценарий на проверку" };
 let DATA = null, tab = "you", lang = "", cur = null, shown = [];
@@ -375,6 +380,7 @@ function render() {
         <div class="row">${isNew(x) ? '<span class="new"></span>' : ""}<span class="num">${esc(nm(x))}</span><span class="tg">батч ${day(x)}</span></div>
         <div class="row"><span class="chip ${pp ? "pend" : x.state}">${chip}</span>${x.status === "4К готов" ? '<span class="chip">4К</span>' : ""}${pubChips(x)}<span class="scores">${scs}</span></div>
         <div class="hook">${esc(x.hook)}</div>
+        ${["plan", "out"].includes(st(x)) && (x.pubs || []).length ? `<div class="pubs">${pubLines(x)}</div>` : ""}
         ${x.step ? `<div class="step">${esc(x.step)}</div>` : ""}
       </div></div>`;
   }
@@ -451,6 +457,7 @@ function infoHtml(x) {
   const label = pp ? "⏳ " + pp.a + " (принято, Мак берёт в работу)" : x.master === "rendering" ? "Рендерю 4К" : x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}-й` : lbl(x);
   let h = `<div class="box"><h3>Статус</h3>
     <div class="row"><span class="chip ${pp ? "pend" : x.state === "review" ? "you" : x.state}">${label}</span><span class="chip">${esc(x.status)}</span>${pubChips(x)}</div>
+    ${(x.pubs || []).length ? `<div class="pubs" style="margin-top:8px">${pubLines(x)}</div>` : ""}
     ${x.step ? `<div class="step" style="margin-top:8px;white-space:normal">⚙️ ${esc(x.step)}</div>` : ""}
     ${(x.log || []).length ? `<details style="margin-top:8px"><summary class="hint">Что происходило (последние шаги)</summary><div class="pack" style="font-size:12px;color:var(--mute);margin-top:6px">${(x.log || []).map(esc).join("\n")}</div></details>` : ""}
     ${(x.acts || []).length ? `<div class="hint" style="margin-top:8px">Твои нажатия: ${(x.acts || []).map((a) => esc(a.t + " " + a.a)).join(" · ")}</div>` : ""}
