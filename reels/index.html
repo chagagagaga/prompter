@@ -152,7 +152,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 <button class="up" id="up">↑</button>
 
 <script>
-const APP_VER = "2026-10-19-f";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-19-g";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -168,7 +168,7 @@ const okT = (t) => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(t || "");
 const pubChips = (x) => (okT(x.when) ? `<span class="chip">🗓 План ${dm(x.when)}</span>` : "") + (okT(x.out) ? `<span class="chip">📢 Выложен ${dm(x.out)}</span>` : "");
 // 19.10: every platform with its own status and time: «✅ TikTok 19.10 20:21 · авто», «🗓 Instagram 20.10 18:00 · вручную»
 const PICON = { out: "✅", plan: "🗓", fail: "⚠️" };
-const pubLines = (x) => (x.pubs || []).map((p) => `<div class="pub ${p.st}">${PICON[p.st] || "🗓"} <b>${esc(p.p)}</b> ${okT(p.t) ? dm(p.t) : ""}${p.st === "fail" ? " · не вышел" : ""} <span class="mute">· ${esc(p.how)}</span>${p.url ? ` <a href="${esc(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">открыть</a>` : ""}</div>`).join("");
+const pubLines = (x) => (x.pubs || []).map((p) => `<div class="pub ${p.st}">${PICON[p.st] || "🗓"} <b>${esc(p.p)}</b> ${okT(p.t) ? dm(p.t) : ""}${p.st === "fail" ? " · не вышел" : ""} <span class="mute">· ${esc(p.how)}</span>${p.url ? ` <a href="${esc(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">открыть</a>` : p.how === "авто" ? ` <span class="mute">· ${p.st === "out" ? "ссылка через 10 мин" : "ссылка после выхода"}</span>` : ""}</div>`).join("");
 const pubText = (x) => [okT(x.when) ? "🗓 План " + dm(x.when) : "", okT(x.out) ? "📢 Выложен " + dm(x.out) : ""].filter(Boolean).join(" · ");
 const LABEL = { you: "Ждёт тебя", work: "Делается", queue: "В очереди", failed: "Не прошёл", done: "Ждёт публикации", out: "📢 Опубликован", off: "Не выкладываем", script: "Ждёт записи", review: "Сценарий на проверку" };
 let DATA = null, tab = "you", lang = "", cur = null, shown = [];
