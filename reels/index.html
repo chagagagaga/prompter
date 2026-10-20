@@ -167,7 +167,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-19-j";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-20-a";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -439,25 +439,31 @@ function actionsBase(x) {
   } else if (x.state === "work" || x.state === "queue") {
     return [];
   } else if (x.status === "Смонтирован" && x.video) {
-    b.push(["r4", "🎬 Рендери 4К + Threads ок", "main"]);
+    // 20.10: one approval for the 4K and every text (Threads RU, X EN); small fixes for each part separately
+    b.push(["r4", "🎬 Рендери 4К" + (x.lang === "RU" ? " + Threads ок" : " + X ок"), "main"]);
     b.push(["notes", "✏️ Прикольно, есть замечания", ""]);
-    if (x.small_reel && x.small_threads) b.push(["fb", "🔧 Поправить мелочи ролика и Threads", ""]);
-    if (x.small_reel) b.push(["fr", "🔧 Поправить мелочи ролика", ""]);
-    if (x.small_threads) b.push(["ft", "🔧 Поправить мелочи Threads", ""]);
+    b.push(["fr", "🔧 Поправить мелочи ролика", ""]);
+    textFixes(x, b);
   } else if (x.status === "4К готов") {
     b.push(["pp", "✅ Выкладывай" + (x.when ? ` (${x.when.slice(8, 10)}.${x.when.slice(5, 7)} ${x.when.slice(11)})` : ""), "good"]);
     b.push(["pt", "🕒 Выкладываем, но другое время", ""]);
     b.push(["pe", "✏️ Хочу сделать правки", ""]);
+    textFixes(x, b);
     b.push(["pc", "🚫 Отмена, не выкладываем", "bad"]);
   } else if (x.state === "done") {
     b.push(["pt", "🕒 Поменять время", ""]);
     b.push(["pe", "✏️ Хочу сделать правки", ""]);
+    textFixes(x, b);
     b.push(["pc", "🚫 Отмена, не выкладываем", "bad"]);
   } else if (x.state === "failed") {
     b.push(["fx", "🔧 Доработать по замечаниям ревьюеров", "main"]);
     b.push(["notes", "✏️ Мои замечания", ""]);
   }
   return b;
+}
+function textFixes(x, b) {  // Threads goes with RU reels, X with EN reels
+  if (x.lang === "RU") b.push(["ft", "🔧 Поправить мелочи Threads", ""]);
+  else b.push(["fz", "🔧 Поправить мелочи X", ""]);
 }
 const TEXT_ACTS = ["notes", "pe", "pt", "ed"];
 const CONFIRM = { pc: "Убрать в «Не выкладываем»? Вернуть можно в любой момент.", tr: "Точно в мусор?", rw: "Переписать сценарий с нуля?" };
