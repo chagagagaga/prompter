@@ -128,6 +128,75 @@ details[open] > summary h3::after { content: " ⌄"; }
     border-radius: 22px; border: 0; background: rgba(255,255,255,.2); color: #fff; font-size: 22px; }
 .pubs { margin-top: 6px; font-size: 13px; line-height: 1.5; }
 .pub.out { color: var(--text, inherit); } .pub.fail { color: #e5484d; } .pub .mute { opacity: .6; } .pub a { margin-left: 4px; }
+
+/* 20.10: «📅 Календарь»: when what came out on which platform and what is next */
+.cal-sum { display: grid; grid-template-columns: 1fr 1fr 1.25fr; gap: 8px; }
+.cal-t { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 11px; min-width: 0; text-align: left; color: var(--text); font: inherit; }
+.cal-t .k { font-size: 11px; color: var(--mute); text-transform: uppercase; letter-spacing: .5px; }
+.cal-t .v { font-size: 22px; font-weight: 800; letter-spacing: -.4px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.cal-t .s { font-size: 12px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-t.nx .v { color: var(--accent); }
+.cal-ctl { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+.cal-seg { display: flex; background: var(--card2); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.cal-seg button { background: none; border: 0; color: var(--mute); font-weight: 600; font-size: 13px; padding: 7px 12px; }
+.cal-seg button.on { background: var(--text); color: #000; }
+.cal-today { margin-left: auto; background: var(--card2); border: 1px solid var(--line); color: var(--text); border-radius: 10px; padding: 7px 12px; font-weight: 700; font-size: 13px; }
+.cal-warn { background: rgba(255,69,58,.15); color: #ff7a71; border: 0; border-radius: 10px; padding: 7px 10px; font-weight: 700; font-size: 13px; }
+.cal-pf { display: flex; gap: 6px; overflow-x: auto; margin: 10px -16px 0; padding: 0 16px; scrollbar-width: none; }
+.cal-pf::-webkit-scrollbar { display: none; }
+.cal-pf button { flex: none; display: flex; align-items: center; gap: 6px; background: var(--card2); border: 1px solid var(--line); color: var(--mute); border-radius: 999px; padding: 5px 11px; font-size: 13px; font-weight: 600; }
+.cal-pf button.on { background: var(--text); color: #000; border-color: var(--text); }
+.cdot { width: 7px; height: 7px; border-radius: 50%; flex: none; display: inline-block; }
+.cal-strip { display: flex; gap: 6px; overflow-x: auto; margin: 12px -16px 0; padding: 2px 16px 4px; scroll-snap-type: x proximity; scrollbar-width: none; }
+.cal-strip::-webkit-scrollbar { display: none; }
+.cal-d { flex: none; width: 50px; scroll-snap-align: center; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 7px 0 6px; text-align: center; color: var(--text); font: inherit; }
+.cal-d .w { font-size: 11px; color: var(--mute); text-transform: uppercase; }
+.cal-d .n { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.cal-d .ds { display: flex; justify-content: center; gap: 2px; height: 7px; margin-top: 3px; }
+.cal-d .ds .cdot { width: 5px; height: 5px; }
+.cal-d .c { font-size: 10px; color: var(--mute); height: 13px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.cal-d.past { opacity: .62; }
+.cal-d.empty .n { color: var(--mute); }
+.cal-d.td { border-color: var(--accent); }
+.cal-d.td .w { color: var(--accent); }
+.cal-d.on { background: var(--text); border-color: var(--text); color: #000; opacity: 1; }
+.cal-d.on .w, .cal-d.on .c, .cal-d.on.empty .n { color: #333; }
+.cal-mh { display: flex; align-items: center; margin-top: 12px; }
+.cal-mh b { flex: 1; text-align: center; font-size: 15px; }
+.cal-mh button { background: var(--card2); border: 0; color: var(--text); width: 38px; height: 32px; border-radius: 10px; font-size: 18px; }
+.cal-mg { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 8px; }
+.cal-mg .wh { font-size: 11px; color: var(--mute); text-align: center; text-transform: uppercase; }
+.cal-m { background: var(--card); border: 1px solid var(--line); border-radius: 10px; min-height: 52px; padding: 4px 2px; text-align: center; color: var(--text); font: inherit; min-width: 0; }
+.cal-m .n { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cal-m .ds { display: flex; justify-content: center; flex-wrap: wrap; gap: 2px; min-height: 6px; margin-top: 2px; }
+.cal-m .ds .cdot { width: 5px; height: 5px; }
+.cal-m .c { font-size: 10px; color: var(--mute); }
+.cal-m.past { opacity: .62; }
+.cal-m.td { border-color: var(--accent); }
+.cal-m.on { background: var(--text); color: #000; border-color: var(--text); opacity: 1; }
+.cal-m.on .c { color: #333; }
+.cal-m.x { visibility: hidden; }
+.cal-dh { display: flex; align-items: baseline; gap: 8px; margin: 18px 2px 8px; }
+.cal-dh b { font-size: 17px; letter-spacing: -.2px; }
+.cal-dh span { color: var(--mute); font-size: 13px; }
+.cal-r { display: grid; grid-template-columns: 50px 1fr; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 11px; margin-bottom: 8px; }
+.cal-r.past { background: transparent; }
+.cal-r .tm { font-weight: 800; font-size: 16px; font-variant-numeric: tabular-nums; }
+.cal-r .tm i { display: block; font-style: normal; font-size: 11px; color: var(--mute); font-weight: 600; }
+.cal-r .lb { font-weight: 800; font-size: 15px; }
+.cal-r .hk { font-size: 13px; color: #c9c9d0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 1px; }
+.cal-r .cps { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.cp { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 4px 9px; border-radius: 999px; background: var(--card2); color: var(--text); text-decoration: none; border: 1px solid transparent; }
+.cp.out { background: rgba(52,199,89,.13); color: #7fe39a; }
+.cp.out.lnk { border-color: rgba(52,199,89,.45); }
+.cp.fail { background: rgba(255,69,58,.15); color: #ff7a71; }
+.cp.plan { color: #d6d6dc; }
+.cp .mute { opacity: .65; font-weight: 600; }
+.cal-now { display: flex; align-items: center; gap: 8px; color: var(--accent); font-size: 12px; font-weight: 700; margin: 4px 0 10px; }
+.cal-now::after { content: ""; flex: 1; height: 1px; background: var(--accent); opacity: .6; }
+.cal-empty { color: var(--mute); text-align: center; padding: 30px 10px; }
+.cal-empty button { margin-top: 12px; background: var(--card2); border: 1px solid var(--line); color: var(--text); border-radius: 10px; padding: 9px 14px; font-weight: 700; font-size: 14px; }
+.cal-hint { color: var(--mute); font-size: 11px; text-align: center; margin-top: 14px; }
 </style>
 </head>
 <body>
@@ -167,7 +236,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-20-a";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-20-b";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -175,7 +244,7 @@ if (TG) { TG.ready(); TG.expand(); try { TG.setHeaderColor("#0b0b0d"); TG.setBac
 const qs = new URLSearchParams(location.search), hs = new URLSearchParams(location.hash.slice(1));
 let K = qs.get("k") || hs.get("k");
 try { if (K) localStorage.setItem("rk", K); else K = localStorage.getItem("rk"); } catch (e) {}
-const TABS = [["scripts", "Сценарии"], ["status", "Статус"], ["you", "Ждут тебя"], ["work", "В работе"], ["failed", "Не прошли"], ["done", "⏳ Ждут публикации"], ["plan", "🗓 Запланированы"], ["out", "📢 Опубликовано"], ["off", "🚫 Не выкладываем"], ["all", "Все"]];
+const TABS = [["scripts", "Сценарии"], ["status", "Статус"], ["you", "Ждут тебя"], ["work", "В работе"], ["failed", "Не прошли"], ["done", "⏳ Ждут публикации"], ["plan", "🗓 Запланированы"], ["out", "📢 Опубликовано"], ["cal", "📅 Календарь"], ["off", "🚫 Не выкладываем"], ["all", "Все"]];
 const dm = (t) => t.slice(8, 10) + "." + t.slice(5, 7) + " " + t.slice(11, 16);
 // 19.10: the planned and the real publishing time on every card and list row: «🗓 План 20.10 11:00 · 📢 Выложен 20.10 11:02»
 const lbl = (x) => x.state === "done" && x.pend ? ((x.pubs || []).some((p) => p.st === "out") ? "🗓 Частично вышел" : "🗓 Запланирован") : x.state === "done" && x.out ? "📢 Опубликован" : x.state === "done" && x.when && ["Запланирован", "▶️ К выкладке"].includes(x.status) ? "🗓 Запланирован" : LABEL[x.state];
@@ -362,17 +431,199 @@ function statusView(base) {
   $("#list").innerHTML = html || '<div class="empty">Пусто</div>';
 }
 
+// 20.10, Alex: «календарь удобный чтобы можно было смотреть когда что вышло на какой платформе и когда выйдет в будущем».
+// Data: DATA.calendar from reels_sync.calendar(), one entry per post, times in Almaty («YYYY-MM-DDTHH:MM»).
+const CAL_COL = { TikTok: "#25f4ee", Instagram: "#ff4fa3", YouTube: "#ff453a", Threads: "#bf5af2", X: "#0a84ff", LinkedIn: "#64d2ff" };
+const CAL_PL = ["TikTok", "Instagram", "YouTube", "Threads", "X"];
+const CAL_WD = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+const CAL_WDF = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
+const CAL_MG = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+const CAL_MN = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+let calDay = "", calPlat = "", calMode = "week", calMonth = "", calStripX = null;
+try { calPlat = localStorage.getItem("calPlat") || ""; calMode = localStorage.getItem("calMode") || "week"; } catch (e) {}
+function almNow() {
+  return new Date(Date.now() + 5 * 3600000).toISOString().slice(0, 16);
+}
+function dAdd(d, n) {
+  const t = new Date(d + "T00:00:00Z");
+  t.setUTCDate(t.getUTCDate() + n);
+  return t.toISOString().slice(0, 10);
+}
+function dWd(d) {
+  return new Date(d + "T00:00:00Z").getUTCDay();
+}
+function calAll() {
+  return ((DATA && DATA.calendar) || []).filter((e) => (!lang || e.lang === lang) && (!calPlat || e.platform === calPlat));
+}
+function calCount() {
+  const t = almNow().slice(0, 10);
+  return calAll().filter((e) => e.at.slice(0, 10) === t).length;
+}
+function calDayName(d) {
+  const t = almNow().slice(0, 10);
+  const rel = d === t ? "Сегодня" : d === dAdd(t, 1) ? "Завтра" : d === dAdd(t, -1) ? "Вчера" : CAL_WDF[dWd(d)];
+  return `${rel}, ${+d.slice(8, 10)} ${CAL_MG[+d.slice(5, 7) - 1]}`;
+}
+function calDots(es) {
+  const ps = CAL_PL.filter((p) => es.some((e) => e.platform === p));
+  return ps.map((p) => `<span class="cdot" style="background:${CAL_COL[p]}"></span>`).join("");
+}
+function calChip(e, nowS) {
+  const ic = e.state === "out" ? "✅" : e.state === "fail" ? "⚠️" : "⏳";
+  let note = "";
+  if (e.state === "fail") note = " · сбой";
+  else if (e.state === "plan" && e.at < nowS) note = " · проверяю";
+  else if (e.how === "вручную") note = e.state === "out" ? " · вручную" : " · сам";
+  else if (e.state === "out" && !e.url) note = " · ссылка позже";
+  const inner = `<span class="cdot" style="background:${CAL_COL[e.platform] || "#888"}"></span>${ic} ${esc(e.platform)} ${esc(e.account)}<span class="mute">${note}</span>`;
+  return e.url ? `<a class="cp ${e.state} lnk" href="${esc(e.url)}" target="_blank" rel="noopener">${inner} ↗</a>` : `<span class="cp ${e.state}">${inner}</span>`;
+}
+function calView() {
+  const nowS = almNow(), today = nowS.slice(0, 10), tmr = dAdd(today, 1);
+  const all = calAll();
+  if (!calDay) calDay = today;
+  if (!calMonth) calMonth = calDay.slice(0, 7);
+  const byDay = {};
+  all.forEach((e) => { (byDay[e.at.slice(0, 10)] = byDay[e.at.slice(0, 10)] || []).push(e); });
+  const tdy = byDay[today] || [];
+  const tOut = tdy.filter((e) => e.state === "out").length, tLeft = tdy.filter((e) => e.state !== "out" && e.at >= nowS).length;
+  const nx = all.find((e) => e.state === "plan" && e.at >= nowS);
+  const fails = all.filter((e) => e.state === "fail");
+  let nxS = "нет в плане", nxV = "–", nxK = "Ближайший";
+  if (nx) {
+    const mins = Math.round((Date.parse(nx.at + ":00Z") - Date.parse(nowS + ":00Z")) / 60000);
+    const inS = mins < 60 ? `через ${mins} мин` : mins < 1440 ? `через ${Math.floor(mins / 60)} ч ${mins % 60} м` : "Ближайший " + nx.at.slice(8, 10) + "." + nx.at.slice(5, 7);
+    nxV = nx.at.slice(11, 16);
+    nxS = `${nx.label} · ${nx.platform}`;
+    nxK = inS;
+  }
+  let h = `<div class="cal-sum">
+    <button class="cal-t" data-cd="${today}"><div class="k">Сегодня</div><div class="v">${tdy.length}</div><div class="s">✅ ${tOut} · ⏳ ${tLeft}</div></button>
+    <button class="cal-t" data-cd="${tmr}"><div class="k">Завтра</div><div class="v">${(byDay[tmr] || []).length}</div><div class="s">${(byDay[tmr] || []).length ? "с " + byDay[tmr][0].at.slice(11, 16) : "пусто"}</div></button>
+    <button class="cal-t nx" ${nx ? `data-cd="${nx.at.slice(0, 10)}"` : ""}><div class="k">${esc(nxK)}</div><div class="v">${nxV}</div><div class="s">${esc(nxS)}</div></button></div>`;
+  h += `<div class="cal-ctl"><div class="cal-seg"><button data-cm="week" class="${calMode === "week" ? "on" : ""}">Лента</button><button data-cm="month" class="${calMode === "month" ? "on" : ""}">Месяц</button></div>`;
+  if (fails.length) h += `<button class="cal-warn" data-cd="${fails[fails.length - 1].at.slice(0, 10)}">⚠️ ${fails.length}</button>`;
+  h += `<button class="cal-today" data-cd="${today}">Сегодня</button></div>`;
+  h += `<div class="cal-pf"><button data-cp="" class="${calPlat ? "" : "on"}">Все</button>` + CAL_PL.map((p) => `<button data-cp="${p}" class="${calPlat === p ? "on" : ""}"><span class="cdot" style="background:${CAL_COL[p]}"></span>${p}</button>`).join("") + `</div>`;
+  if (calMode === "month") {
+    const y = +calMonth.slice(0, 4), m = +calMonth.slice(5, 7);
+    const first = calMonth + "-01", lead = (dWd(first) + 6) % 7, nd = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    h += `<div class="cal-mh"><button data-mm="-1">‹</button><b>${CAL_MN[m - 1]} ${y}</b><button data-mm="1">›</button></div><div class="cal-mg">`;
+    h += ["пн", "вт", "ср", "чт", "пт", "сб", "вс"].map((w) => `<div class="wh">${w}</div>`).join("");
+    for (let i = 0; i < lead; i++) h += `<div class="cal-m x"></div>`;
+    for (let i = 1; i <= nd; i++) {
+      const d = calMonth + "-" + String(i).padStart(2, "0"), es = byDay[d] || [];
+      h += `<button class="cal-m ${d < today ? "past" : ""} ${d === today ? "td" : ""} ${d === calDay ? "on" : ""}" data-cd="${d}"><div class="n">${i}</div><div class="ds">${calDots(es)}</div><div class="c">${es.length || ""}</div></button>`;
+    }
+    h += `</div>`;
+  } else {
+    const keys = Object.keys(byDay).sort();
+    let a = keys[0] && keys[0] < dAdd(today, -7) ? keys[0] : dAdd(today, -7);
+    let b = keys.length && keys[keys.length - 1] > dAdd(today, 7) ? keys[keys.length - 1] : dAdd(today, 7);
+    if (calDay < a) a = calDay;
+    if (calDay > b) b = calDay;
+    h += `<div class="cal-strip" id="calStrip">`;
+    for (let d = a; d <= b; d = dAdd(d, 1)) {
+      const es = byDay[d] || [];
+      h += `<button class="cal-d ${d < today ? "past" : ""} ${es.length ? "" : "empty"} ${d === today ? "td" : ""} ${d === calDay ? "on" : ""}" data-cd="${d}"><div class="w">${CAL_WD[dWd(d)]}</div><div class="n">${+d.slice(8, 10)}</div><div class="ds">${calDots(es)}</div><div class="c">${es.length || ""}</div></button>`;
+    }
+    h += `</div>`;
+  }
+  const es = byDay[calDay] || [];
+  const outN = es.filter((e) => e.state === "out").length;
+  h += `<div class="cal-dh"><b>${calDayName(calDay)}</b><span>${es.length ? `${es.length} пост. · вышло ${outN}` : ""}</span></div>`;
+  const groups = [];
+  es.forEach((e) => {
+    const g = groups.find((x) => x.at === e.at && x.id === e.id);
+    if (g) g.es.push(e); else groups.push({ at: e.at, id: e.id, label: e.label, hook: e.hook, es: [e] });
+  });
+  if (!groups.length) {
+    const nd = all.find((e) => e.at.slice(0, 10) > calDay);
+    h += `<div class="cal-empty">В этот день ${calDay < today ? "ничего не выходило" : "ничего не запланировано"}${calPlat ? " в " + calPlat : ""}${nd ? `<br><button data-cd="${nd.at.slice(0, 10)}">Дальше: ${calDayName(nd.at.slice(0, 10))}</button>` : ""}</div>`;
+  }
+  let nowDone = calDay !== today;
+  for (const g of groups) {
+    if (!nowDone && g.at > nowS) { h += `<div class="cal-now">Сейчас ${nowS.slice(11, 16)}</div>`; nowDone = true; }
+    const past = g.es.every((e) => e.state === "out");
+    const has = DATA.items.some((i) => i.id === g.id);
+    h += `<div class="cal-r ${past ? "past" : ""}" data-cid="${g.id}"><div class="tm">${g.at.slice(11, 16)}<i>${past ? "вышло" : g.at < nowS ? "" : "план"}</i></div>
+      <div style="min-width:0"><div class="lb">${esc(g.label)}${has ? ' <span style="color:var(--mute);font-weight:600">›</span>' : ""}</div><div class="hk">${esc(g.hook)}</div>
+      <div class="cps">${g.es.map((e) => calChip(e, nowS)).join("")}</div></div></div>`;
+  }
+  if (!nowDone && groups.length) h += `<div class="cal-now">Сейчас ${nowS.slice(11, 16)}</div>`;
+  h += `<div class="cal-hint">Время Алматы · свайп по дню влево/вправо листает дни · ✅ со стрелкой открывает пост</div>`;
+  shown = groups.map((g) => DATA.items.find((i) => i.id === g.id)).filter((x, i, arr) => x && arr.indexOf(x) === i);
+  const prevX = calStripX;
+  $("#list").innerHTML = h;
+  const s = document.getElementById("calStrip");
+  if (s) {
+    const on = s.querySelector(".cal-d.on");
+    if (prevX !== null) s.scrollLeft = prevX;
+    else if (on) s.scrollLeft = on.offsetLeft - s.clientWidth / 2 + on.offsetWidth / 2;
+    s.onscroll = () => { calStripX = s.scrollLeft; };
+    calStripX = s.scrollLeft;
+  }
+}
+function calGo(d) {
+  calDay = d;
+  calMonth = d.slice(0, 7);
+  calStripX = null;
+  render();
+}
+function calClick(e) {
+  if (e.target.closest("a")) return true;
+  const cd = e.target.closest("[data-cd]");
+  if (cd) { calGo(cd.dataset.cd); return true; }
+  const cm = e.target.closest("[data-cm]");
+  if (cm) { calMode = cm.dataset.cm; calStripX = null; try { localStorage.setItem("calMode", calMode); } catch (x) {} render(); return true; }
+  const cp = e.target.closest("[data-cp]");
+  if (cp) { calPlat = cp.dataset.cp; calStripX = null; try { localStorage.setItem("calPlat", calPlat); } catch (x) {} render(); return true; }
+  const mm = e.target.closest("[data-mm]");
+  if (mm) {
+    const t = new Date(calMonth + "-01T00:00:00Z");
+    t.setUTCMonth(t.getUTCMonth() + +mm.dataset.mm);
+    calMonth = t.toISOString().slice(0, 7);
+    render();
+    return true;
+  }
+  const r = e.target.closest("[data-cid]");
+  if (r) {
+    if (DATA.items.some((i) => i.id === r.dataset.cid)) openReel(r.dataset.cid);
+    else toast("Карточки ролика уже нет в списке (старый), ссылки на посты здесь");
+    return true;
+  }
+  return false;
+}
+let calX0 = null;
+document.addEventListener("touchstart", (e) => {
+  calX0 = tab === "cal" && !cur && !e.target.closest(".cal-strip, .cal-pf") ? [e.touches[0].clientX, e.touches[0].clientY] : null;
+}, { passive: true });
+document.addEventListener("touchend", (e) => {
+  if (!calX0 || tab !== "cal" || cur) return;
+  const dx = e.changedTouches[0].clientX - calX0[0], dy = e.changedTouches[0].clientY - calX0[1];
+  calX0 = null;
+  if (Math.abs(dx) > 70 && Math.abs(dy) < 45) {
+    if (calMode === "month" && e.target.closest(".cal-mg")) {
+      const t = new Date(calMonth + "-01T00:00:00Z");
+      t.setUTCMonth(t.getUTCMonth() + (dx < 0 ? 1 : -1));
+      calMonth = t.toISOString().slice(0, 7);
+      render();
+    } else calGo(dAdd(calDay || almNow().slice(0, 10), dx < 0 ? 1 : -1));
+  }
+}, { passive: true });
+
 function render() {
   const q = $("#q").value.trim();
   const base = DATA.items.filter((x) => (!lang || x.lang === lang) && match(x, q));
   const cnt = (t) => base.filter((x) => t === "all" ? !(st(x) === "scripts" && ["trash", "reserve"].includes(sgOf(x)))
     : t === "status" ? ["work", "queue"].includes(eff(x)) : t === "scripts" ? st(x) === t && ["you", "edit"].includes(sgOf(x)) : st(x) === t).length;
-  $("#tabs").innerHTML = TABS.map(([k, v]) => `<button class="tab ${k === tab ? "on" : ""}" data-t="${k}">${v}<b>${cnt(k)}</b></button>`).join("");
+  $("#tabs").innerHTML = TABS.map(([k, v]) => `<button class="tab ${k === tab ? "on" : ""}" data-t="${k}">${v}<b>${k === "cal" ? calCount() : cnt(k)}</b></button>`).join("");
   const scr = base.filter((x) => st(x) === "scripts");
   $("#stabs").innerHTML = tab !== "scripts" || q ? "" : SUBS.map(([k, v]) => { const xs = scr.filter((x) => sgOf(x) === k);
     const by = lang ? "" : ["RU", "EN"].map((l) => `<i>${l} ${xs.filter((x) => x.lang === l).length}</i>`).join("");
     return `<button class="tab ${k === sub ? "on" : ""}" data-s="${k}">${v}<b>${xs.length}</b>${by}</button>`; }).join("");
   if (tab === "status" && !q) { shown = base.filter((x) => !side(x)); statusView(shown); return; }
+  if (tab === "cal" && !q) { calView(); return; }
   shown = base.filter((x) => q || (tab === "all" ? !(st(x) === "scripts" && ["trash", "reserve"].includes(sgOf(x)))
     : tab === "scripts" ? st(x) === "scripts" && sgOf(x) === sub : st(x) === tab));
   if (q && !shown.length) shown = base;
@@ -695,7 +946,10 @@ function closeReel() {
 function step(d) {
   const i = shown.findIndex((x) => x.id === cur); const n = shown[i + d]; if (n) { cur = n.id; SEEN[n.id] = sig(n); saveSeen(); infoSig = ""; $("#sheet").scrollTop = 0; fillDetail(n); }
 }
-$("#list").onclick = (e) => { const it = e.target.closest(".item"); if (it) openReel(it.dataset.id); };
+$("#list").onclick = (e) => {
+  if (tab === "cal" && !$("#q").value.trim() && calClick(e)) return;
+  const it = e.target.closest(".item"); if (it) openReel(it.dataset.id);
+};
 try { tab = localStorage.getItem("tab") || "you"; } catch (e) {}
 try { sub = localStorage.getItem("sub") || "you"; } catch (e) {}
 $("#stabs").onclick = (e) => { const t = e.target.closest(".tab"); if (t) { sub = t.dataset.s; try { localStorage.setItem("sub", sub); } catch (e) {} render(); window.scrollTo(0, 0); } };
