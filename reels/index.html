@@ -236,7 +236,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-20-b";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-21-a";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -637,7 +637,8 @@ function render() {
     const pd = tab === "plan" ? x.when : tab === "out" ? x.out : "";
     const g = !q && okT(pd) ? `${tab === "plan" ? "🗓" : "📢"} ${pd.slice(8, 10)}.${pd.slice(5, 7)}` : `Батч ${day(x)} · ${x.lang}` + (tab === "scripts" && !q ? ` · ${SUBN[sgOf(x)]}` : "");
     if (g !== grp) { html += `<div class="group">${g}</div>`; grp = g; }
-    const scs = Object.values(x.scores || {}).map((v) => `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${Number(v) || 0}</span>`).join("");
+    const scs = Object.values(x.scores || {}).map((v) => `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${Number(v) || 0}</span>`).join("")
+      + (x.hookdir && x.hookdir.s_open != null ? `<span class="sc ${x.hookdir.s_open >= 7 ? "g" : x.hookdir.s_open >= 6 ? "y" : "r"}">🎣${Number(x.hookdir.s_open) || 0}</span>` : "");
     const pp = pendOf(x);
     const chip = pp ? "⏳ " + pp.a : x.state === "review" && x.sg && x.sg !== "you" ? x.status : x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}` : x.master === "rendering" ? "Рендерю 4К" : lbl(x);
     html += `<div class="item" data-id="${x.id}">
@@ -723,6 +724,29 @@ const NEXT = { work: "Ролик делается. Кнопки появятся
   script: "Сценарий одобрен, ждёт записи. После записи ролик смонтируется сам.", off: "Решили не выкладывать." };
 const sc = (v) => v == null ? "" : `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${Number(v) || 0}</span>`;
 
+// 21.10, Alex: the hook and retention director (hook.json) right on the card: the opening, its scores, what it changed
+const hookEmo = (v) => v == null ? "" : v >= 8 ? "🔥" : v >= 6 ? "👍" : "⚠️";
+const hookSc = (v) => v == null ? "?" : `${Number(v) || 0}/10 ${hookEmo(v)}`;
+function hookHtml(b) {
+  const li = (a) => a.map((t) => `<div class="pack" style="font-size:13.5px;line-height:1.45;margin-bottom:6px">• ${esc(t)}</div>`).join("");
+  const sub = (t, a) => (a || []).length ? `<div style="font-size:13px;font-weight:700;color:var(--mute);margin:10px 0 6px">${t}</div>${li(a)}` : "";
+  const txt = (t, v) => v ? `<div style="font-size:13px;font-weight:700;color:var(--mute);margin:10px 0 4px">${t}</div><div class="pack" style="font-size:13.5px;line-height:1.45">${esc(v)}</div>` : "";
+  const rv = Object.entries(b.reviewers || {}).map(([k, r]) => `${k === "producer" ? "🎬 Продюсер" : "👁 Визуал"}: начало ${r.opening ?? "?"}, середина ${r.mid ?? "?"}`);
+  const misses = Object.values(b.reviewers || {}).flatMap((r) => r.misses || []);
+  let h = `<div class="box"><h3>🎣 Хук и удержание</h3>
+    <div class="row" style="gap:8px;margin:4px 0 8px"><span class="chip">начало ${hookSc(b.s_open)}</span><span class="chip">удержание ${hookSc(b.s_ret)}</span>${b.variant ? `<span class="hint">${esc(b.variant)}</span>` : ""}</div>`;
+  if (b.opening) h += `<div class="pack" style="font-size:14px;line-height:1.45;margin-bottom:8px"><b>Начало:</b> ${esc(b.opening)}</div>`;
+  if ((b.changes || []).length) h += `<div style="font-size:13px;font-weight:700;color:var(--mute);margin:6px 0 6px">Что поменял и почему</div>${li(b.changes)}`;
+  if (b.question) h += `<div class="pack" style="font-size:13.5px;line-height:1.45;margin-top:6px"><b>❓ Вопрос:</b> ${esc(b.question)}${b.paid_at ? ` <span class="hint">· закрывается на ${esc(b.paid_at)} с</span>` : ""}</div>`;
+  if (rv.length) h += `<div class="hint" style="margin-top:8px">Ревьюеры удержания: ${esc(rv.join(" · "))}</div>`;
+  const more = txt("Кадр 0 (обложка)", b.frame0) + txt("Без звука", b.sound_off) + txt("Чем закрывается вопрос", b.paid_by)
+    + sub("Почему такое начало", b.why) + sub("Перезацепы по ходу", b.rehooks) + sub(`Все правки (${(b.all_changes || []).length})`, b.all_changes)
+    + sub("Ревьюеры удержания видят", misses) + txt("Слабое место, которое не смог исправить", b.weakest)
+    + (b.kept != null || b.cost != null ? `<div class="hint" style="margin-top:10px">${b.kept != null ? `без изменений ${esc(String(b.kept))} кадров` : ""}${b.kept != null && b.cost != null ? " · " : ""}${b.cost != null ? `стоимость ~$${esc(String(b.cost))}` : ""}</div>` : "");
+  if (more) h += `<details style="margin-top:8px"><summary class="hint" style="font-size:13px">Подробнее</summary>${more}</details>`;
+  return h + `</div>`;
+}
+
 function infoHtml(x) {
   const acts = actions(x);
   const pp = pendOf(x);
@@ -737,6 +761,7 @@ function infoHtml(x) {
   h += `<div class="box"><h3>Что дальше</h3>${acts.length ? `<div class="acts" style="margin:0">${acts.map(([a, t, c]) => `<button class="btn ${c}" data-a="${a}">${t}</button>`).join("")}
       <div class="form" id="form"><textarea id="txt"></textarea><button class="btn main" id="send">Отправить</button></div></div>` : `<div class="hint" style="font-size:14px">${NEXT[x.state] || ""}</div>`}</div>`;
   if (x.speech) h += `<div class="box speech"><h3>🎙 Криво в речи</h3><div class="pack">${esc(x.speech)}</div></div>`;
+  if (x.hookdir) h += hookHtml(x.hookdir);
   if (x.audio && (x.state === "review" || x.state === "script")) h += karaokeHtml(x);
   if (x.state === "review") {
     h += `<div class="box"><h3>Хук</h3><div class="pack" style="font-size:17px;font-weight:700">${esc(x.hook)}</div>
