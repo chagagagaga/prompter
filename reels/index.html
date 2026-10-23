@@ -236,7 +236,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-21-a";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-23-a";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -384,7 +384,7 @@ async function load() {
     let fresh; try { fresh = await freshData(); } finally { LOADING = false; }
     DATA = fresh;
     try { localStorage.setItem("dcache", JSON.stringify(DATA)); } catch (e) {}  // the next start shows this at once
-    $("#upd").innerHTML = '<span class="live"></span>' + DATA.updated;
+    $("#upd").innerHTML = '<span class="live"></span>обновлено ' + DATA.updated + ' (Алматы)';
     if (DATA.app && DATA.app !== APP_VER && !sessionStorage.getItem("rl" + DATA.app)) {
       sessionStorage.setItem("rl" + DATA.app, "1"); location.replace(location.pathname + "?v=" + Date.now() + (qs.get("k") ? "&k=" + K : "") + (location.hash || "")); return;
     }
@@ -397,7 +397,7 @@ async function load() {
     }
     render();
     if (cur) { const x = DATA.items.find((i) => i.id === cur); if (x) fillDetail(x, false); }
-  } catch (e) { if (!DATA) $("#lock").textContent = "Не открылось: неверный ключ или нет сети."; else $("#upd").innerHTML = "⚠️ нет сети · " + DATA.updated; }
+  } catch (e) { if (!DATA) $("#lock").textContent = "Не открылось: неверный ключ или нет сети."; else $("#upd").innerHTML = "⚠️ нет сети · данные от " + DATA.updated + " (Алматы)"; }
 }
 
 function match(x, q) {
@@ -991,7 +991,7 @@ if (TG) { TG.BackButton.onClick(() => closeReel()); }
 setInterval(() => { if (TG) cur ? TG.BackButton.show() : TG.BackButton.hide(); }, 400);
 try {  // instant start: the last data saved on the phone, the fresh one follows in a second or two
   const c = localStorage.getItem("dcache");
-  if (c && K) { DATA = JSON.parse(c); GHT = DATA.gh || ""; $("#upd").innerHTML = "⏳ " + DATA.updated; render(); }
+  if (c && K) { DATA = JSON.parse(c); GHT = DATA.gh || ""; $("#upd").innerHTML = "⏳ загружаю, в кэше от " + DATA.updated + " (Алматы)"; render(); }
 } catch (e) {}
 load().then(() => { if (DATA) setTimeout(prefetchAll, 300); const id = qs.get("r") || location.hash.slice(1); if (/^\d{6}-(RU|US)-\d\d$/.test(id)) openReel(id); });
 document.addEventListener("click", (e) => { const s = e.target.closest("summary"); if (s) e.stopPropagation(); });
