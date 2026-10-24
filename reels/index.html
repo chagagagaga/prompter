@@ -236,7 +236,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-24-d";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-24-e";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -782,6 +782,7 @@ function infoHtml(x) {
       <div class="form" id="form"><textarea id="txt"></textarea><button class="btn main" id="send">Отправить</button></div></div>` : `<div class="hint" style="font-size:14px">${NEXT[x.state] || ""}</div>`}</div>`;
   if (x.speech) h += `<div class="box speech"><h3>🎙 Криво в речи</h3><div class="pack">${esc(x.speech)}</div></div>`;
   h += blockHtml(x);
+  if (x.trial !== undefined && (x.trial || x.trial_hook)) h += `<div class="box"><h3>🧪 Пробная версия (только Instagram)</h3><div class="hint" style="font-size:14px">Хук: ${esc(x.trial_hook || "")}<br>Другие картинки и кадр 0. Выйдет пробным роликом, основная лента её не видит.</div>${x.trial ? `<button class="btn" id="trialbtn" style="margin-top:8px">▶️ Смотреть пробную</button> <button class="btn" id="mainbtn" style="margin-top:8px">▶️ Основная</button>` : `<div class="hint">Видео ещё делается</div>`}</div>`;
   if (x.hookdir) h += hookHtml(x.hookdir);
   if (x.audio && (x.state === "review" || x.state === "script")) h += karaokeHtml(x);
   if (x.state === "review") {
@@ -877,6 +878,9 @@ async function bindKaraoke(x) {
 
 function bindInfo(x) {
   bindKaraoke(x);
+  const tb = document.getElementById("trialbtn"), mb = document.getElementById("mainbtn");
+  if (tb) tb.onclick = () => { video(Object.assign({}, x, { video: x.trial })); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  if (mb) mb.onclick = () => { video(x); window.scrollTo({ top: 0, behavior: "smooth" }); };
   let pending = null;
   document.querySelectorAll("[data-a]").forEach((el) => el.onclick = () => {
     const a = el.dataset.a;
