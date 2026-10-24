@@ -236,7 +236,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-24-a";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-24-b";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -425,7 +425,7 @@ function statusView(base) {
         : g === "review" ? x.status : g === "done" ? (pubText(x) || x.status) : x.status;
       html += `<div class="srow item" data-id="${x.id}"><span class="num">${esc(nm(x))}<div class="when">${day(x)}</div></span>
         <div style="min-width:0"><div class="what">${isNew(x) ? '<span class="new" style="display:inline-block;margin-right:6px"></span>' : ""}${esc(what)}</div>
-        <div class="when">${esc(x.tag)} · ${esc(x.updated)}</div></div><span class="go">›</span></div>`;
+        <div class="when">${x.block ? (BLOCK_EMO[x.block] || "") + " " + esc(x.block) + " · " : ""}${x.adapt ? "♻️ адаптация · " : ""}${esc(x.tag)} · ${esc(x.updated)}</div></div><span class="go">›</span></div>`;
     }
   }
   $("#list").innerHTML = html || '<div class="empty">Пусто</div>';
@@ -646,6 +646,7 @@ function render() {
       <div class="body">
         <div class="row">${isNew(x) ? '<span class="new"></span>' : ""}<span class="num">${esc(nm(x))}</span><span class="tg">батч ${day(x)}</span></div>
         <div class="row"><span class="chip ${pp ? "pend" : x.state}">${chip}</span>${x.status === "4К готов" ? '<span class="chip">4К</span>' : ""}${pubChips(x)}<span class="scores">${scs}</span></div>
+        <div class="row">${blockChip(x)}</div>
         <div class="hook">${esc(x.hook)}</div>
         ${["plan", "out"].includes(st(x)) && (x.pubs || []).length ? `<div class="pubs">${pubLines(x)}</div>` : ""}
         ${x.step ? `<div class="step">${esc(x.step)}</div>` : ""}
@@ -726,6 +727,16 @@ const CONFIRM = { pc: "Убрать в «Не выкладываем»? Верн
 const NEXT = { work: "Ролик делается. Кнопки появятся, когда он будет готов и пройдёт ревью.",
   queue: "Ролик в очереди на монтаж. Кнопки появятся, когда он будет готов.",
   script: "Сценарий одобрен, ждёт записи. После записи ролик смонтируется сам.", off: "Решили не выкладывать." };
+// 24.10, Alex: funnel block and «адаптация хита» right on the card, outside and inside
+const BLOCK_EMO = { "охват": "📣", "хайп": "🔥", "экспертный": "🧠", "продающий": "💰" };
+const blockChip = (x) => (x.block ? `<span class="chip">${BLOCK_EMO[x.block] || ""} ${esc(x.block)}</span>` : "") + (x.adapt ? `<span class="chip" style="background:rgba(255,200,0,.18)">♻️ адаптация</span>` : "");
+function blockHtml(x) {
+  let h = "";
+  if (x.block || x.adapt) h += `<div class="box"><h3>Блок воронки</h3><div class="row">${blockChip(x)}</div>`
+    + (x.adapt ? `<div class="hint" style="margin-top:8px;font-size:14px">Адаптация чужого хита. Что берём: ${esc(x.adapt.what || "структуру")}<br><a href="${esc(x.adapt.url)}" target="_blank" rel="noopener">▶️ Открыть исходный ролик</a></div>` : "") + `</div>`;
+  if (x.hooks23) h += `<div class="box"><h3>Хуки для пробных (только Instagram)</h3><div class="pack">${esc("V1: " + (x.hook || "") + "\n" + x.hooks23)}</div></div>`;
+  return h;
+}
 const sc = (v) => v == null ? "" : `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${Number(v) || 0}</span>`;
 
 // 21.10, Alex: the hook and retention director (hook.json) right on the card: the opening, its scores, what it changed
@@ -765,6 +776,7 @@ function infoHtml(x) {
   h += `<div class="box"><h3>Что дальше</h3>${acts.length ? `<div class="acts" style="margin:0">${acts.map(([a, t, c]) => `<button class="btn ${c}" data-a="${a}">${t}</button>`).join("")}
       <div class="form" id="form"><textarea id="txt"></textarea><button class="btn main" id="send">Отправить</button></div></div>` : `<div class="hint" style="font-size:14px">${NEXT[x.state] || ""}</div>`}</div>`;
   if (x.speech) h += `<div class="box speech"><h3>🎙 Криво в речи</h3><div class="pack">${esc(x.speech)}</div></div>`;
+  h += blockHtml(x);
   if (x.hookdir) h += hookHtml(x.hookdir);
   if (x.audio && (x.state === "review" || x.state === "script")) h += karaokeHtml(x);
   if (x.state === "review") {
