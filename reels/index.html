@@ -236,7 +236,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-23-a";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-24-a";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -708,8 +708,12 @@ function actionsBase(x) {
     textFixes(x, b);
     b.push(["pc", "🚫 Отмена, не выкладываем", "bad"]);
   } else if (x.state === "failed") {
-    b.push(["fx", "🔧 Доработать по замечаниям ревьюеров", "main"]);
+    // 24.10, Alex: «бывает, что всё норм, а кнопку нажать не могу»: the same approval and small fixes as a passed reel
+    if (x.video) b.push(["r4", "🎬 Всё ок, рендери 4К" + (x.lang === "RU" ? " + Threads ок" : " + X ок"), "main"]);
+    b.push(["fx", "🔧 Доработать по замечаниям ревьюеров", ""]);
     b.push(["notes", "✏️ Мои замечания", ""]);
+    b.push(["fr", "🔧 Поправить мелочи ролика", ""]);
+    textFixes(x, b);
   }
   return b;
 }
