@@ -236,7 +236,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-25-b";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-25-c";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -244,7 +244,9 @@ if (TG) { TG.ready(); TG.expand(); try { TG.setHeaderColor("#0b0b0d"); TG.setBac
 const qs = new URLSearchParams(location.search), hs = new URLSearchParams(location.hash.slice(1));
 let K = qs.get("k") || hs.get("k");
 try { if (K) localStorage.setItem("rk", K); else K = localStorage.getItem("rk"); } catch (e) {}
-const TABS = [["scripts", "Сценарии"], ["status", "Статус"], ["you", "Ждут тебя"], ["work", "В работе"], ["failed", "Не прошли"], ["done", "⏳ Ждут публикации"], ["plan", "🗓 Запланированы"], ["out", "📢 Опубликовано"], ["cal", "📅 Календарь"], ["off", "🚫 Не выкладываем"], ["all", "Все"]];
+const ANIM_G = { you: "Ждут тебя", work: "Собираются / переозвучка / правка", failed: "Не прошли", done: "Ждут публикации", plan: "Запланированы", out: "Опубликованы" };
+const ANIM_O = { you: 0, failed: 1, work: 2, done: 3, plan: 4, out: 5 };
+const TABS = [["scripts", "Сценарии"], ["status", "Статус"], ["you", "Ждут тебя"], ["anim", "🎨 Анимации"], ["work", "В работе"], ["failed", "Не прошли"], ["done", "⏳ Ждут публикации"], ["plan", "🗓 Запланированы"], ["out", "📢 Опубликовано"], ["cal", "📅 Календарь"], ["off", "🚫 Не выкладываем"], ["all", "Все"]];
 const dm = (t) => t.slice(8, 10) + "." + t.slice(5, 7) + " " + t.slice(11, 16);
 // 19.10: the planned and the real publishing time on every card and list row: «🗓 План 20.10 11:00 · 📢 Выложен 20.10 11:02»
 const lbl = (x) => x.state === "done" && x.pend ? ((x.pubs || []).some((p) => p.st === "out") ? "🗓 Частично вышел" : "🗓 Запланирован") : x.state === "done" && x.out ? "📢 Опубликован" : x.state === "done" && x.when && ["Запланирован", "▶️ К выкладке"].includes(x.status) ? "🗓 Запланирован" : LABEL[x.state];
@@ -625,17 +627,21 @@ function render() {
   if (tab === "status" && !q) { shown = base.filter((x) => !side(x)); statusView(shown); return; }
   if (tab === "cal" && !q) { calView(); return; }
   shown = base.filter((x) => q || (tab === "all" ? !(st(x) === "scripts" && ["trash", "reserve"].includes(sgOf(x)))
-    : tab === "scripts" ? st(x) === "scripts" && sgOf(x) === sub : st(x) === tab));
+    : tab === "scripts" ? st(x) === "scripts" && sgOf(x) === sub
+    : tab === "anim" ? x.anim && st(x) !== "scripts" && st(x) !== "off"  // 25.10, Alex: all animations in one place
+    : st(x) === tab));
   if (q && !shown.length) shown = base;
   const order = { you: 0, work: 1, queue: 2, review: 3, failed: 4, script: 5, done: 6, off: 7 };
   shown.sort((a, b) => (tab === "work" ? a.queue_pos - b.queue_pos || (order[a.state] - order[b.state]) : 0) || b.id.localeCompare(a.id));
+  if (tab === "anim" && !q) shown.sort((a, b) => (ANIM_O[st(a)] ?? 9) - (ANIM_O[st(b)] ?? 9) || b.id.localeCompare(a.id));
   if (tab === "plan" && !q) shown.sort((a, b) => (a.when || "").localeCompare(b.when || ""));  // the nearest first
   if (tab === "out" && !q) shown.sort((a, b) => (b.out || "").localeCompare(a.out || ""));    // the latest first
   if (!shown.length) { $("#list").innerHTML = `<div class="empty">${tab === "you" ? "Ничего не ждёт тебя 🎉" : tab === "scripts" && sub === "you" ? "Все сценарии разобраны 🎉" : "Пусто"}</div>`; return; }
   let html = "", grp = "";
   for (const x of shown) {
     const pd = tab === "plan" ? x.when : tab === "out" ? x.out : "";
-    const g = !q && okT(pd) ? `${tab === "plan" ? "🗓" : "📢"} ${pd.slice(8, 10)}.${pd.slice(5, 7)}` : `Батч ${day(x)} · ${x.lang}` + (tab === "scripts" && !q ? ` · ${SUBN[sgOf(x)]}` : "");
+    const g = !q && tab === "anim" ? "🎨 " + (ANIM_G[st(x)] || st(x))
+      : !q && okT(pd) ? `${tab === "plan" ? "🗓" : "📢"} ${pd.slice(8, 10)}.${pd.slice(5, 7)}` : `Батч ${day(x)} · ${x.lang}` + (tab === "scripts" && !q ? ` · ${SUBN[sgOf(x)]}` : "");
     if (g !== grp) { html += `<div class="group">${g}</div>`; grp = g; }
     const scs = Object.values(x.scores || {}).map((v) => `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${Number(v) || 0}</span>`).join("")
       + (x.hookdir && x.hookdir.s_open != null ? `<span class="sc ${x.hookdir.s_open >= 7 ? "g" : x.hookdir.s_open >= 6 ? "y" : "r"}">🎣${Number(x.hookdir.s_open) || 0}</span>` : "");
