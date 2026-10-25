@@ -197,6 +197,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 .cal-empty { color: var(--mute); text-align: center; padding: 30px 10px; }
 .cal-empty button { margin-top: 12px; background: var(--card2); border: 1px solid var(--line); color: var(--text); border-radius: 10px; padding: 9px 14px; font-weight: 700; font-size: 14px; }
 .cal-hint { color: var(--mute); font-size: 11px; text-align: center; margin-top: 14px; }
+.vlab{font-weight:700;font-size:15px;margin:4px 0 6px}
 </style>
 </head>
 <body>
@@ -236,7 +237,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-25-c";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-25-d";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -661,8 +662,8 @@ function render() {
   $("#list").innerHTML = html;
 }
 
-async function video(x) {
-  const p = $("#player");
+async function video(x, pid = "player") {
+  const p = $("#" + pid);
   if (!x.video) { p.innerHTML = `<div class="ld">${x.state === "script" ? "Ещё не записан" : "Видео ещё делается"}</div>`; return; }
   if (!vids[x.video]) {
     p.innerHTML = `<div class="ld" style="text-align:center">${x.thumb ? `<img src="${x.thumb}" style="width:120px;border-radius:10px;opacity:.5;display:block;margin:0 auto 10px">` : ""}<span id="pct">Загружаю видео…</span></div>`;
@@ -674,7 +675,9 @@ async function video(x) {
   if (cur !== x.id || !document.body.contains(p)) return;
   stopPlayer();
   p.innerHTML = `<video src="${vids[x.video]}" controls playsinline webkit-playsinline preload="auto"></video>`;
-  PLAYER = p.querySelector("video");
+  if (pid === "player") PLAYER = p.querySelector("video");
+  // 25.10: two players on one card (main + trial): one plays at a time (iPhone played both = his speech «doubled»)
+  p.querySelector("video").addEventListener("play", (e) => document.querySelectorAll("video").forEach((v) => { if (v !== e.target) try { v.pause(); } catch (er) {} }));
 }
 
 function actions(x) {
@@ -698,6 +701,11 @@ function actionsBase(x) {
   } else if (x.state === "work" || x.state === "queue") {
     return [];
   } else if (x.status === "Смонтирован" && x.video) {
+    if (x.anim && x.trial) {  // 25.10, Alex: swap the two versions, or another animation style for one of them
+      b.push(["sw", "🔄 Поменять местами основную и пробную", ""]);
+      b.push(["sm", "🎨 Другая анимация для основной", ""]);
+      b.push(["st", "🎨 Другая анимация для пробной", ""]);
+    }
     // 20.10: one approval for the 4K and every text (Threads RU, X EN); small fixes for each part separately
     b.push(["r4", "🎬 Рендери 4К" + (x.lang === "RU" ? " + Threads ок" : " + X ок"), "main"]);
     b.push(["notes", "✏️ Прикольно, есть замечания", ""]);
@@ -731,7 +739,7 @@ function textFixes(x, b) {  // Threads goes with RU reels, X with EN reels
   if (b.some(a => a[0] === "fr")) b.push(x.lang === "RU" ? ["fb", "🔧 Мелочи ролика + Threads", ""] : ["fbx", "🔧 Мелочи ролика + X", ""]);
 }
 const TEXT_ACTS = ["notes", "pe", "pt", "ed"];
-const CONFIRM = { pc: "Убрать в «Не выкладываем»? Вернуть можно в любой момент.", tr: "Точно в мусор?", rw: "Переписать сценарий с нуля?" };
+const CONFIRM = { sw: "Поменять местами: пробная пойдёт в ленту, основная станет пробной в Instagram?", sm: "Пересобрать основную версию в другом стиле анимации? Это ~1-1,5 часа.", st: "Пересобрать пробную версию в другом стиле анимации? Это ~1-1,5 часа.", pc: "Убрать в «Не выкладываем»? Вернуть можно в любой момент.", tr: "Точно в мусор?", rw: "Переписать сценарий с нуля?" };
 const NEXT = { work: "Ролик делается. Кнопки появятся, когда он будет готов и пройдёт ревью.",
   queue: "Ролик в очереди на монтаж. Кнопки появятся, когда он будет готов.",
   script: "Сценарий одобрен, ждёт записи. После записи ролик смонтируется сам.", off: "Решили не выкладывать." };
@@ -796,7 +804,7 @@ function infoHtml(x) {
     h += `<div class="box"><h3>Оценки агентов · итог ${sc(Number(avg))} ${esc(String(avg))}</h3><div class="row" style="flex-wrap:wrap;gap:6px">${Object.entries(x.scores).map(([k, v]) => `<span class="chip">${esc(k)} ${sc(Number(v))}</span>`).join("")}</div></div>`;
   }
   h += blockHtml(x);
-  if (x.trial !== undefined && (x.trial || x.trial_hook)) h += `<div class="box"><h3>🧪 Пробная версия (только Instagram)</h3><div class="hint" style="font-size:14px">Хук: ${esc(x.trial_hook || "")}<br>Другие картинки и кадр 0. Выйдет пробным роликом, основная лента её не видит.</div>${x.trial ? `<button class="btn" id="trialbtn" style="margin-top:8px">▶️ Смотреть пробную</button> <button class="btn" id="mainbtn" style="margin-top:8px">▶️ Основная</button>` : `<div class="hint">Видео ещё делается</div>`}</div>`;
+  if (x.trial !== undefined && (x.trial || x.trial_hook)) h += `<div class="box"><h3>🧪 Пробная версия (только Instagram)</h3><div class="hint" style="font-size:14px">Хук: ${esc(x.trial_hook || "")}<br>Другие картинки и кадр 0. Выйдет пробным роликом, основная лента её не видит.</div>${x.trial ? `<div class="hint">Видео пробной версии открыто вверху, под основной.</div>` : `<div class="hint">Видео ещё делается</div>`}</div>`;
   if (x.hookdir) h += hookHtml(x.hookdir);
   if (x.audio && (x.state === "review" || x.state === "script")) h += karaokeHtml(x);
   if (x.state === "review") {
@@ -935,9 +943,13 @@ function fillDetail(x, withVideo = true) {
     stopPlayer();
     const i = shown.findIndex((y) => y.id === x.id);
     setTimeout(() => (pre[x.video] || Promise.resolve()).then(() => [shown[i + 1], shown[i - 1]].forEach((y) => y && preload(y))), 0);
-    $("#detail").innerHTML = (x.state === "review" ? "" : `<div class="player" id="player"></div>
-      <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="more" id="fs" style="padding:0">⛶ На весь экран</button></div>`) + `<div id="info"></div>`;
+    // 25.10, Alex: main and trial open one under the other, each with its label on top
+    const two = x.state !== "review" && x.trial;
+    $("#detail").innerHTML = (x.state === "review" ? "" : (two ? `<div class="vlab">🎬 Основная версия (лента, все площадки)</div>` : "") + `<div class="player" id="player"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="more" id="fs" style="padding:0">⛶ На весь экран</button></div>`
+      + (two ? `<div class="vlab" style="margin-top:14px">🧪 Пробная версия (только Instagram)${x.trial_hook ? ` · хук: ${esc(x.trial_hook)}` : ""}</div><div class="player" id="player2"></div>` : "")) + `<div id="info"></div>`;
     if (x.state !== "review") video(x);
+    if (two) video(Object.assign({}, x, { video: x.trial }), "player2");
     // 18.10, Alex: «не работает кнопка на весь экран». Native fullscreen is refused inside Telegram / before metadata, and a
     // fixed player inside the card sheet stays clipped by it. The video element moves into its own layer on <body>
     // (all screen, black, ✕ to close, the same playback continues), then back into the card.
@@ -981,7 +993,7 @@ async function sendInApp(a, id, text) {  // an encrypted GitHub issue in the Pag
   if (!r.ok) throw new Error(r.status);
 }
 function send(a, id, text) {
-  const notes = { r4: "🎬 4К поехал", notes: "✏️ Замечания ушли", fr: "🔧 Правлю мелочи", ft: "🔧 Правлю мелочи", fb: "🔧 Правлю мелочи", fbx: "🔧 Правлю мелочи",
+  const notes = { r4: "🎬 4К поехал", notes: "✏️ Замечания ушли", fr: "🔧 Правлю мелочи", ft: "🔧 Правлю мелочи", fb: "🔧 Правлю мелочи", fbx: "🔧 Правлю мелочи", sw: "🔄 Меняю местами", sm: "🎨 Меняю анимацию", st: "🎨 Меняю анимацию",
     pp: "✅ Ставлю на выкладку", pt: "🕒 Ставлю на время", pe: "✏️ Снимаю и переделываю", pc: "🚫 В «Не выкладываем»", fx: "🔧 Дорабатываю",
     ap: "✅ Беру", ed: "✏️ Правлю сценарий", rw: "❌ Переписываю", tr: "🗑 В мусор", fs: "🔧 Правлю отмеченные", un: "↩️ Возвращаю" };
   if (GHT) {
