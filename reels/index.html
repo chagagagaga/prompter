@@ -251,14 +251,14 @@ const ANIM_O = { you: 0, failed: 1, work: 2, done: 3, plan: 4, out: 5 };
 const TABS = [["scripts", "Сценарии"], ["status", "Статус"], ["you", "Ждут тебя"], ["anim", "🎨 Анимации"], ["work", "В работе"], ["failed", "Не прошли"], ["done", "⏳ Ждут публикации"], ["plan", "🗓 Запланированы"], ["out", "📢 Опубликовано"], ["cal", "📅 Календарь"], ["off", "🚫 Не выкладываем"], ["all", "Все"]];
 const dm = (t) => t.slice(8, 10) + "." + t.slice(5, 7) + " " + t.slice(11, 16);
 // 19.10: the planned and the real publishing time on every card and list row: «🗓 План 20.10 11:00 · 📢 Выложен 20.10 11:02»
-const lbl = (x) => x.state === "done" && x.pend ? ((x.pubs || []).some((p) => p.st === "out") ? "🗓 Частично вышел" : "🗓 Запланирован") : x.state === "done" && x.out ? "📢 Опубликован" : x.state === "done" && x.when && ["Запланирован", "▶️ К выкладке"].includes(x.status) ? "🗓 Запланирован" : LABEL[x.state];
+const lbl = (x) => x.state === "done" && x.pend ? ((x.pubs || []).some((p) => p.st === "out") ? "🗓 Частично вышел" : "🗓 Запланирован") : x.state === "done" && x.out ? "📢 Опубликован" : x.state === "done" && x.when && ["Запланирован", "▶️ К выкладке"].includes(x.status) ? `🗓 Поставлено на выкладку ${dm(x.when)}, выйдет само` : LABEL[x.state];
 const okT = (t) => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(t || "");
 const pubChips = (x) => (okT(x.when) && (x.pend || !x.out) ? `<span class="chip">🗓 ${x.pend && (x.pubs || []).some((p) => p.st === "out") ? "Дальше" : "План"} ${dm(x.when)}</span>` : "") + (okT(x.out) ? `<span class="chip">📢 Выложен ${dm(x.out)}</span>` : "");
 // 19.10: every platform with its own status and time: «✅ TikTok 19.10 20:21 · авто», «🗓 Instagram 20.10 18:00 · вручную»
 const PICON = { out: "✅", plan: "🗓", fail: "⚠️" };
 const pubLines = (x) => (x.pubs || []).map((p) => `<div class="pub ${p.st}">${PICON[p.st] || "🗓"} <b>${esc(p.p)}</b> ${okT(p.t) ? dm(p.t) : ""}${p.st === "fail" ? " · не вышел" : ""} <span class="mute">· ${esc(p.how)}</span>${p.url ? ` <a href="${esc(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">открыть</a>` : p.how === "авто" ? ` <span class="mute">· ${p.st === "out" ? "ссылка через 10 мин" : "ссылка после выхода"}</span>` : ""}</div>`).join("");
 const pubText = (x) => [okT(x.when) ? "🗓 План " + dm(x.when) : "", okT(x.out) ? "📢 Выложен " + dm(x.out) : ""].filter(Boolean).join(" · ");
-const LABEL = { you: "Ждёт тебя", work: "Делается", queue: "В очереди", failed: "Не прошёл", done: "Ждёт публикации", out: "📢 Опубликован", off: "Не выкладываем", script: "Ждёт записи", review: "Сценарий на проверку" };
+const LABEL = { you: "Ждёт тебя", work: "Делается", queue: "В очереди", failed: "Не прошёл", done: "⏳ Одобрен: собираю мастер и ставлю время выкладки", out: "📢 Опубликован", off: "Не выкладываем", script: "Ждёт записи", review: "Сценарий на проверку" };
 let DATA = null, tab = "you", lang = "", cur = null, shown = [];
 let SEEN = {};
 try { SEEN = JSON.parse(localStorage.getItem("seen") || "{}"); } catch (e) {}
