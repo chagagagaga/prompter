@@ -237,7 +237,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-26-b";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-26-c";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -423,8 +423,8 @@ function statusView(base) {
     if (!xs.length) continue;
     html += `<div class="group">${names[g]} · ${xs.length}</div>`;
     for (const x of xs) {
-      const what = g === "work" ? (x.master === "rendering" ? "Рендерю 4К" : x.step || "в работе") : g === "queue" ? (x.queue_pos ? `${x.queue_pos}-й в очереди` : "ждёт линию")
-        : g === "you" ? (x.status === "4К готов" ? (x.anim ? "готов: выкладывать?" : "4К готов: выкладывать?") : "1080 на проверку") : g === "failed" ? "оценки " + Object.values(x.scores || {}).join("/")
+      const what = g === "work" ? (x.master === "rendering" ? "Рендерю 1440" : x.step || "в работе") : g === "queue" ? (x.queue_pos ? `${x.queue_pos}-й в очереди` : "ждёт линию")
+        : g === "you" ? (x.status === "4К готов" ? "готов: выкладывать?" : "1080 на проверку") : g === "failed" ? "оценки " + Object.values(x.scores || {}).join("/")
         : g === "review" ? x.status : g === "done" ? (pubText(x) || x.status) : x.status;
       html += `<div class="srow item" data-id="${x.id}"><span class="num">${esc(nm(x))}<div class="when">${day(x)}</div></span>
         <div style="min-width:0"><div class="what">${isNew(x) ? '<span class="new" style="display:inline-block;margin-right:6px"></span>' : ""}${esc(what)}</div>
@@ -647,12 +647,12 @@ function render() {
     const scs = Object.values(x.scores || {}).map((v) => `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${Number(v) || 0}</span>`).join("")
       + (x.hookdir && x.hookdir.s_open != null ? `<span class="sc ${x.hookdir.s_open >= 7 ? "g" : x.hookdir.s_open >= 6 ? "y" : "r"}">🎣${Number(x.hookdir.s_open) || 0}</span>` : "");
     const pp = pendOf(x);
-    const chip = pp ? "⏳ " + pp.a : x.state === "review" && x.sg && x.sg !== "you" ? x.status : x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}` : x.master === "rendering" ? "Рендерю 4К" : lbl(x);
+    const chip = pp ? "⏳ " + pp.a : x.state === "review" && x.sg && x.sg !== "you" ? x.status : x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}` : x.master === "rendering" ? "Рендерю 1440" : lbl(x);
     html += `<div class="item" data-id="${x.id}">
       <div class="thumb" ${x.thumb ? `style="background-image:url(${x.thumb})"` : ""}>${x.thumb ? "" : `<div class="ph">${x.state === "script" ? "🎙" : x.state === "review" ? "📝" : "⏳"}</div>`}</div>
       <div class="body">
         <div class="row">${isNew(x) ? '<span class="new"></span>' : ""}<span class="num">${esc(nm(x))}</span><span class="tg">батч ${day(x)}</span></div>
-        <div class="row"><span class="chip ${pp ? "pend" : x.state}">${chip}</span>${x.status === "4К готов" && !x.anim ? '<span class="chip">4К</span>' : ""}${pubChips(x)}<span class="scores">${scs}</span></div>
+        <div class="row"><span class="chip ${pp ? "pend" : x.state}">${chip}</span>${x.status === "4К готов" && !x.anim ? '<span class="chip">1440</span>' : ""}${pubChips(x)}<span class="scores">${scs}</span></div>
         <div class="row">${blockChip(x)}</div>
         <div class="hook">${esc(x.hook)}</div>
         ${["plan", "out"].includes(st(x)) && (x.pubs || []).length ? `<div class="pubs">${pubLines(x)}</div>` : ""}
@@ -709,8 +709,9 @@ function actionsBase(x) {
       b.push(["st", "🎨 Другая анимация для пробной", ""]);
     }
     // 20.10: one approval for the 4K and every text (Threads RU, X EN); small fixes for each part separately
-    // 26.10, Alex: an animation is drawn in 1080 and goes out in 1080 (no 4K): its button says so
-    b.push(["r4", (x.anim ? "✅ Одобряю (1080)" : "🎬 Рендери 4К") + (x.lang === "RU" ? " + Threads ок" : " + X ок"), "main"]);
+    // 26.10, Alex: an animation is drawn in 1080 and goes out in 1080: its button says so; a face reel's master is
+    // 1440x2560 since 26.10 (was 4K; the status value «4К готов» in the sheet stays as the internal name)
+    b.push(["r4", (x.anim ? "✅ Одобряю (1080)" : "🎬 Рендери 1440") + (x.lang === "RU" ? " + Threads ок" : " + X ок"), "main"]);
     b.push(["notes", "✏️ Прикольно, есть замечания", ""]);
     b.push(["fr", "🔧 Поправить мелочи ролика", ""]);
     textFixes(x, b);
@@ -727,7 +728,7 @@ function actionsBase(x) {
     b.push(["pc", "🚫 Отмена, не выкладываем", "bad"]);
   } else if (x.state === "failed") {
     // 24.10, Alex: «бывает, что всё норм, а кнопку нажать не могу»: the same approval and small fixes as a passed reel
-    if (x.video) b.push(["r4", (x.anim ? "✅ Всё ок, одобряю (1080)" : "🎬 Всё ок, рендери 4К") + (x.lang === "RU" ? " + Threads ок" : " + X ок"), "main"]);
+    if (x.video) b.push(["r4", (x.anim ? "✅ Всё ок, одобряю (1080)" : "🎬 Всё ок, рендери 1440") + (x.lang === "RU" ? " + Threads ок" : " + X ок"), "main"]);
     b.push(["fx", "🔧 Доработать по замечаниям ревьюеров", ""]);
     b.push(["notes", "✏️ Мои замечания", ""]);
     b.push(["fr", "🔧 Поправить мелочи ролика", ""]);
@@ -790,7 +791,7 @@ function hookHtml(b) {
 function infoHtml(x) {
   const acts = actions(x);
   const pp = pendOf(x);
-  const label = pp ? "⏳ " + pp.a + " (принято, Мак берёт в работу)" : x.master === "rendering" ? "Рендерю 4К" : x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}-й` : lbl(x);
+  const label = pp ? "⏳ " + pp.a + " (принято, Мак берёт в работу)" : x.master === "rendering" ? "Рендерю 1440" : x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}-й` : lbl(x);
   let h = `<div class="box"><h3>Статус</h3>
     <div class="row"><span class="chip ${pp ? "pend" : x.state === "review" ? "you" : x.state}">${label}</span><span class="chip">${esc(x.status)}</span>${pubChips(x)}</div>
     ${(x.pubs || []).length ? `<div class="pubs" style="margin-top:8px">${pubLines(x)}</div>` : ""}
