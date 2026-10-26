@@ -198,7 +198,6 @@ details[open] > summary h3::after { content: " ⌄"; }
 .cal-empty button { margin-top: 12px; background: var(--card2); border: 1px solid var(--line); color: var(--text); border-radius: 10px; padding: 9px 14px; font-weight: 700; font-size: 14px; }
 .cal-hint { color: var(--mute); font-size: 11px; text-align: center; margin-top: 14px; }
 .vlab{font-weight:700;font-size:15px;margin:4px 0 6px}
-.scores-under{margin:6px 2px 4px;font-size:13px;line-height:1.6;color:var(--mute,#888)}.scores-under .ok{color:#2e9e5b}.scores-under .mid{color:#c98a12}.scores-under .bad{color:#d0453b}
 </style>
 </head>
 <body>
@@ -238,7 +237,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-26-d";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-26-c";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -251,14 +250,14 @@ const ANIM_O = { you: 0, failed: 1, work: 2, done: 3, plan: 4, out: 5 };
 const TABS = [["scripts", "Сценарии"], ["status", "Статус"], ["you", "Ждут тебя"], ["anim", "🎨 Анимации"], ["work", "В работе"], ["failed", "Не прошли"], ["done", "⏳ Ждут публикации"], ["plan", "🗓 Запланированы"], ["out", "📢 Опубликовано"], ["cal", "📅 Календарь"], ["off", "🚫 Не выкладываем"], ["all", "Все"]];
 const dm = (t) => t.slice(8, 10) + "." + t.slice(5, 7) + " " + t.slice(11, 16);
 // 19.10: the planned and the real publishing time on every card and list row: «🗓 План 20.10 11:00 · 📢 Выложен 20.10 11:02»
-const lbl = (x) => x.state === "done" && x.pend ? ((x.pubs || []).some((p) => p.st === "out") ? "🗓 Частично вышел" : "🗓 Запланирован") : x.state === "done" && x.out ? "📢 Опубликован" : x.state === "done" && x.when && ["Запланирован", "▶️ К выкладке"].includes(x.status) ? `🗓 Поставлено на выкладку ${dm(x.when)}, выйдет само` : LABEL[x.state];
+const lbl = (x) => x.state === "done" && x.pend ? ((x.pubs || []).some((p) => p.st === "out") ? "🗓 Частично вышел" : "🗓 Запланирован") : x.state === "done" && x.out ? "📢 Опубликован" : x.state === "done" && x.when && ["Запланирован", "▶️ К выкладке"].includes(x.status) ? "🗓 Запланирован" : LABEL[x.state];
 const okT = (t) => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(t || "");
 const pubChips = (x) => (okT(x.when) && (x.pend || !x.out) ? `<span class="chip">🗓 ${x.pend && (x.pubs || []).some((p) => p.st === "out") ? "Дальше" : "План"} ${dm(x.when)}</span>` : "") + (okT(x.out) ? `<span class="chip">📢 Выложен ${dm(x.out)}</span>` : "");
 // 19.10: every platform with its own status and time: «✅ TikTok 19.10 20:21 · авто», «🗓 Instagram 20.10 18:00 · вручную»
 const PICON = { out: "✅", plan: "🗓", fail: "⚠️" };
 const pubLines = (x) => (x.pubs || []).map((p) => `<div class="pub ${p.st}">${PICON[p.st] || "🗓"} <b>${esc(p.p)}</b> ${okT(p.t) ? dm(p.t) : ""}${p.st === "fail" ? " · не вышел" : ""} <span class="mute">· ${esc(p.how)}</span>${p.url ? ` <a href="${esc(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">открыть</a>` : p.how === "авто" ? ` <span class="mute">· ${p.st === "out" ? "ссылка через 10 мин" : "ссылка после выхода"}</span>` : ""}</div>`).join("");
 const pubText = (x) => [okT(x.when) ? "🗓 План " + dm(x.when) : "", okT(x.out) ? "📢 Выложен " + dm(x.out) : ""].filter(Boolean).join(" · ");
-const LABEL = { you: "Ждёт тебя", work: "Делается", queue: "В очереди", failed: "Не прошёл", done: "⏳ Одобрен: собираю мастер и ставлю время выкладки", out: "📢 Опубликован", off: "Не выкладываем", script: "Ждёт записи", review: "Сценарий на проверку" };
+const LABEL = { you: "Ждёт тебя", work: "Делается", queue: "В очереди", failed: "Не прошёл", done: "Ждёт публикации", out: "📢 Опубликован", off: "Не выкладываем", script: "Ждёт записи", review: "Сценарий на проверку" };
 let DATA = null, tab = "you", lang = "", cur = null, shown = [];
 let SEEN = {};
 try { SEEN = JSON.parse(localStorage.getItem("seen") || "{}"); } catch (e) {}
@@ -663,20 +662,6 @@ function render() {
   $("#list").innerHTML = html;
 }
 
-// 26.10, Alex: «выведи сразу под видео оценки ревьюеров по видео и под ними оценки ревьюеров по X или Threads, только
-// оценки с названием ревьюеров»
-const RV_NAMES = { visual: "Визуал", facts: "Факты", producer: "Продюсер", anti_slop: "Анти-слоп", hook: "Хук", strategy: "Стратег",
-  retention: "Удержание", x_expert: "X-эксперт", threads: "Threads", editor: "Редактор", reach: "Охват", style: "Стиль", anim: "Анимация" };
-function scoreRow(title, sc) {
-  const e = Object.entries(sc || {}).filter(([, v]) => v !== null && v !== undefined && v !== "");
-  if (!e.length) return "";
-  return `<div class="scr"><b>${title}:</b> ` + e.map(([k, v]) => `${esc(RV_NAMES[k] || k)} <b class="${+v >= 8 ? "ok" : +v >= 6 ? "mid" : "bad"}">${v}</b>`).join(" · ") + "</div>";
-}
-function scoreLines(x) {
-  const out = scoreRow("Ролик", x.scores) + scoreRow("Подписи", x.cap_scores) + scoreRow(x.lang === "RU" ? "Threads" : "X", x.text_scores);
-  return out ? `<div class="scores-under">${out}</div>` : "";
-}
-
 async function video(x, pid = "player") {
   const p = $("#" + pid);
   if (!x.video) { p.innerHTML = `<div class="ld">${x.state === "script" ? "Ещё не записан" : "Видео ещё делается"}</div>`; return; }
@@ -690,12 +675,6 @@ async function video(x, pid = "player") {
   if (cur !== x.id || !document.body.contains(p)) return;
   // 26.10, Alex «основная версия не грузится, плей не нажимается»: the trial player's stopPlayer() emptied the main
   // player's src. Only the main player resets the page's players; the trial one just pauses the others when it plays.
-  // 26.10, Alex (RU 50): «наслоение двух голосов в самом начале, концовка без звука»: the 30 s sync re-rendered the card
-  // and replaced the player while it played; Safari keeps playing a removed <video>, so the old one went on under the new.
-  // The same video already in this player is left alone; an old one is stopped and unloaded before it is replaced.
-  const old = p.querySelector("video");
-  if (old && old.getAttribute("src") === vids[x.video]) return;
-  if (old) { try { old.pause(); old.removeAttribute("src"); old.load(); } catch (e) {} }
   if (pid === "player") stopPlayer();
   p.innerHTML = `<video src="${vids[x.video]}" controls playsinline webkit-playsinline preload="auto"></video>`;
   if (pid === "player") PLAYER = p.querySelector("video");
@@ -758,12 +737,10 @@ function actionsBase(x) {
   return b;
 }
 function textFixes(x, b) {  // Threads goes with RU reels, X with EN reels
-  // 26.10, Alex: «не хватает кнопки сразу править все мелочи»: the one-tap «all» goes first, right after the approval
-  const fr = b.findIndex(a => a[0] === "fr");
-  if (fr >= 0) b.splice(fr, 0, x.lang === "RU" ? ["fb", "🔧 Поправить ВСЕ мелочи сразу (ролик, подписи, Threads)", "main"]
-                                                 : ["fbx", "🔧 Поправить ВСЕ мелочи сразу (ролик, подписи, X)", "main"]);
   if (x.lang === "RU") b.push(["ft", "🔧 Поправить мелочи Threads", ""]);
   else b.push(["fz", "🔧 Поправить мелочи X", ""]);
+  // 25.10, Alex: both at once, where the reel's small fixes are offered too
+  if (b.some(a => a[0] === "fr")) b.push(x.lang === "RU" ? ["fb", "🔧 Мелочи ролика + Threads", ""] : ["fbx", "🔧 Мелочи ролика + X", ""]);
 }
 const TEXT_ACTS = ["notes", "pe", "pt", "ed"];
 const CONFIRM = { sw: "Поменять местами: пробная пойдёт в ленту, основная станет пробной в Instagram?", sm: "Пересобрать основную версию в другом стиле анимации? Это ~1-1,5 часа.", st: "Пересобрать пробную версию в другом стиле анимации? Это ~1-1,5 часа.", pc: "Убрать в «Не выкладываем»? Вернуть можно в любой момент.", tr: "Точно в мусор?", rw: "Переписать сценарий с нуля?" };
@@ -973,7 +950,7 @@ function fillDetail(x, withVideo = true) {
     // 25.10, Alex: main and trial open one under the other, each with its label on top
     const two = x.state !== "review" && x.trial;
     $("#detail").innerHTML = (x.state === "review" ? "" : (two ? `<div class="vlab">🎬 Основная версия (лента, все площадки)</div>` : "") + `<div class="player" id="player"></div>
-      <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="more" id="fs" style="padding:0">⛶ На весь экран</button></div>` + scoreLines(x)
+      <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="more" id="fs" style="padding:0">⛶ На весь экран</button></div>`
       + (two ? `<div class="vlab" style="margin-top:14px">🧪 Пробная версия (только Instagram)${x.trial_hook ? ` · хук: ${esc(x.trial_hook)}` : ""}</div><div class="player" id="player2"></div>` : "")) + `<div id="info"></div>`;
     if (x.state !== "review") video(x);
     if (two) video(Object.assign({}, x, { video: x.trial }), "player2");
