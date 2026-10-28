@@ -238,7 +238,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-28-a";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-28-b";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -719,6 +719,7 @@ function actionsBase(x) {
   if (x.state === "review") {
     b.push(["ap", "✅ Беру", "good"]);
     b.push(["ed", "✏️ Есть правки", ""]);
+    b.push(["ve", "🎙 Правки голосом", ""]);
     b.push(["rw", "❌ Не беру, иди сам переписывай", ""]);
     if (x.sg !== "trash") b.push(["tr", "🗑 Мусор", "bad"]);
   } else if (x.state === "work" || x.state === "queue") {
@@ -734,6 +735,7 @@ function actionsBase(x) {
     // 1440x2560 since 26.10 (was 4K; the status value «4К готов» in the sheet stays as the internal name)
     b.push(["r4", (x.anim ? "✅ Одобряю (1080)" : "🎬 Рендери 1440") + (x.lang === "RU" ? " + Threads ок" : " + X ок"), "main"]);
     b.push(["notes", "✏️ Прикольно, есть замечания", ""]);
+    b.push(["vn", "🎙 Замечания голосом", ""]);
     b.push(["fr", "🔧 Поправить мелочи ролика", ""]);
     textFixes(x, b);
   } else if (x.status === "4К готов") {
@@ -752,6 +754,7 @@ function actionsBase(x) {
     if (x.video) b.push(["r4", (x.anim ? "✅ Всё ок, одобряю (1080)" : "🎬 Всё ок, рендери 1440") + (x.lang === "RU" ? " + Threads ок" : " + X ок"), "main"]);
     b.push(["fx", "🔧 Доработать по замечаниям ревьюеров", ""]);
     b.push(["notes", "✏️ Мои замечания", ""]);
+    b.push(["vn", "🎙 Замечания голосом", ""]);
     b.push(["fr", "🔧 Поправить мелочи ролика", ""]);
     textFixes(x, b);
   }
@@ -1022,13 +1025,14 @@ async function sendInApp(a, id, text) {  // an encrypted GitHub issue in the Pag
 function send(a, id, text) {
   const notes = { r4: "🎬 Принято", notes: "✏️ Замечания ушли", fr: "🔧 Правлю мелочи", ft: "🔧 Правлю мелочи", fb: "🔧 Правлю мелочи", fbx: "🔧 Правлю мелочи", sw: "🔄 Меняю местами", sm: "🎨 Меняю анимацию", st: "🎨 Меняю анимацию",
     pp: "✅ Ставлю на выкладку", pt: "🕒 Ставлю на время", pe: "✏️ Снимаю и переделываю", pc: "🚫 В «Не выкладываем»", fx: "🔧 Дорабатываю",
-    ap: "✅ Беру", ed: "✏️ Правлю сценарий", rw: "❌ Переписываю", tr: "🗑 В мусор", fs: "🔧 Правлю отмеченные", un: "↩️ Возвращаю" };
+    ap: "✅ Беру", ed: "✏️ Правлю сценарий", vn: "🎙 Запиши голосовое в чате с ботом", ve: "🎙 Запиши голосовое в чате с ботом", rw: "❌ Переписываю", tr: "🗑 В мусор", fs: "🔧 Правлю отмеченные", un: "↩️ Возвращаю" };
   if (GHT) {
     const x = DATA.items.find((i) => i.id === id);
     sendInApp(a, id, text).then(() => {
       PEND[id] = { a: notes[a], c: a, sig: x ? sig(x) : "", t: Date.now() }; savePend(); toast(notes[a] + ": принято");
       if ($("#form")) { $("#form").classList.remove("on"); if ($("#txt")) $("#txt").value = ""; }
       infoSig = ""; if (cur === id && x) fillDetail(x, false); render(); setTimeout(load, 12000);
+      if ((a === "vn" || a === "ve") && TG) { try { setTimeout(() => TG.close(), 900); } catch (e) {} }  // 28.10: to the chat, record a voice
     }).catch(() => toast("Не отправилось, проверь интернет и нажми ещё раз"));
     return;
   }
