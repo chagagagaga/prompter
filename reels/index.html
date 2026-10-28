@@ -238,7 +238,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-26-e";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-28-a";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -425,7 +425,7 @@ function statusView(base) {
     html += `<div class="group">${names[g]} · ${xs.length}</div>`;
     for (const x of xs) {
       const what = g === "work" ? (x.master === "rendering" ? "Рендерю 1440" : x.step || "в работе") : g === "queue" ? (x.queue_pos ? `${x.queue_pos}-й в очереди` : "ждёт линию")
-        : g === "you" ? (x.status === "4К готов" ? "готов: выкладывать?" : "1080 на проверку") : g === "failed" ? "оценки " + Object.values(x.scores || {}).join("/")
+        : g === "you" ? (x.status === "4К готов" ? "готов: выкладывать?" : "1080 на проверку") : g === "failed" ? "оценки " + Object.values(x.scores || {}).join("/") + (x.step ? " · " + x.step : "")
         : g === "review" ? x.status : g === "done" ? (pubText(x) || x.status) : x.status;
       html += `<div class="srow item" data-id="${x.id}"><span class="num">${esc(nm(x))}<div class="when">${day(x)}</div></span>
         <div style="min-width:0"><div class="what">${isNew(x) ? '<span class="new" style="display:inline-block;margin-right:6px"></span>' : ""}${esc(what)}</div>
