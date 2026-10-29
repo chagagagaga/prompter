@@ -646,7 +646,11 @@ function render() {
       : !q && okT(pd) ? `${tab === "plan" ? "🗓" : "📢"} ${pd.slice(8, 10)}.${pd.slice(5, 7)}` : `Батч ${day(x)} · ${x.lang}` + (tab === "scripts" && !q ? ` · ${SUBN[sgOf(x)]}` : "");
     if (g !== grp) { html += `<div class="group">${g}</div>`; grp = g; }
     const scs = Object.values(x.scores || {}).map((v) => `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${Number(v) || 0}</span>`).join("")
-      + (x.hookdir && x.hookdir.s_open != null ? `<span class="sc ${x.hookdir.s_open >= 7 ? "g" : x.hookdir.s_open >= 6 ? "y" : "r"}">🎣${Number(x.hookdir.s_open) || 0}</span>` : "");
+      + (x.hookdir && x.hookdir.s_open != null ? `<span class="sc ${x.hookdir.s_open >= 7 ? "g" : x.hookdir.s_open >= 6 ? "y" : "r"}">🎣${Number(x.hookdir.s_open) || 0}</span>` : "")
+      // 29.10, Alex: icons of the new script system: 📖 развёрнутый, ✒️ перо (na-pero), ⚖️ юрист
+      + (x.deep ? `<span class="sc g" title="развёрнутый, ${x.words} слов">📖</span>` : "")
+      + (x.pero != null ? `<span class="sc ${x.pero >= 8 ? "g" : x.pero >= 6 ? "y" : "r"}" title="перо: текст">✒️${Number(x.pero) || 0}</span>` : "")
+      + (x.legal != null ? `<span class="sc ${x.legal >= 8 ? "g" : x.legal >= 6 ? "y" : "r"}" title="юрист: риски">⚖️${Number(x.legal) || 0}</span>` : "");
     const pp = pendOf(x);
     const chip = pp ? "⏳ " + pp.a : x.state === "review" && x.sg && x.sg !== "you" ? x.status : x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}` : x.master === "rendering" ? "Рендерю 1440" : lbl(x);
     html += `<div class="item" data-id="${x.id}">
@@ -831,7 +835,7 @@ function infoHtml(x) {
   if (x.state === "review" && x.scores && Object.keys(x.scores).length) {  // 25.10, Alex: the agents' scores on top, short
     const vals = Object.values(x.scores).map(Number).filter((v) => !isNaN(v));
     const avg = x.score || (vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : "");
-    h += `<div class="box"><h3>Оценки агентов · итог ${sc(Number(avg))} ${esc(String(avg))}</h3><div class="row" style="flex-wrap:wrap;gap:6px">${Object.entries(x.scores).map(([k, v]) => `<span class="chip">${esc(k)} ${sc(Number(v))}</span>`).join("")}</div></div>`;
+    h += `<div class="box"><h3>Оценки агентов · итог ${sc(Number(avg))} ${esc(String(avg))}${x.deep ? ` · 📖 развёрнутый, ${x.words} слов` : ""}</h3><div class="row" style="flex-wrap:wrap;gap:6px">${Object.entries(x.scores).map(([k, v]) => `<span class="chip">${esc(k)} ${sc(Number(v))}</span>`).join("")}</div></div>`;
   }
   h += blockHtml(x);
   if (x.trial !== undefined && (x.trial || x.trial_hook)) h += `<div class="box"><h3>🧪 Пробная версия (только Instagram)</h3><div class="hint" style="font-size:14px">Хук: ${esc(x.trial_hook || "")}<br>Другие картинки и кадр 0. Выйдет пробным роликом, основная лента её не видит.</div>${x.trial ? `<div class="hint">Видео пробной версии открыто вверху, под основной.</div>` : `<div class="hint">Видео ещё делается</div>`}</div>`;
