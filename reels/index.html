@@ -241,7 +241,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-30-weighted";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-30-audio";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -914,6 +914,15 @@ function karaokeHtml(x) {
     <button class="btn" id="kslow" style="padding:10px 14px">1×</button></div>
     <div class="pack" id="kar" style="font-size:17px;line-height:1.6">${html}</div></div>`;
 }
+// one audio element for the karaoke, made once; a tap «unlocks» it synchronously before any download (Safari / Chrome
+// autoplay rules count only what happens inside the tap itself)
+const AUD_EL = new Audio();
+const SILENT = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYyLjEyLjEwMgAAAAAAAAAAAAAA//OEwAAAAAAAAAAAAEluZm8AAAAPAAAABwAAA2AAVVVVVVVVVVVVVVVVVVVxcXFxcXFxcXFxcXFxcY6Ojo6Ojo6Ojo6Ojo6Oqqqqqqqqqqqqqqqqqqqqx8fHx8fHx8fHx8fHx8fj4+Pj4+Pj4+Pj4+Pj4///////////////////AAAAAExhdmM2Mi4yOAAAAAAAAAAAAAAAACQEIAAAAAAAAANgUS9UGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//NExAAAAANIAAAAAExBTUU0LjBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTQu//NExFMAAANIAAAAADBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTQu//NExKYAAANIAAAAADBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTQu//NExKwAAANIAAAAADBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTQu//NExKwAAANIAAAAADBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NExKwAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NExKwAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV";
+function unlockAudio() {
+  if (AUD_EL.dataset.unlocked) return;
+  AUD_EL.dataset.unlocked = "1";
+  try { AUD_EL.src = SILENT; const p = AUD_EL.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+}
 async function bindKaraoke(x) {
   const box = $("#kar"); if (!box || !x.audio) return;
   const marks = x.marks || [];
@@ -921,9 +930,12 @@ async function bindKaraoke(x) {
     if (AUD && AUD_ID === x.id) return AUD;
     if (AUD) { AUD.pause(); AUD = null; }
     $("#kplay").textContent = "Загружаю…";
+    // 30.10, Alex «нажимаю на озвучку, а она не работает»: the Audio was made AFTER the download, outside his tap, and the
+    // browser left it «playing» at 0 s. One element is unlocked inside the tap (UNLOCK) and only gets its source here.
     const b = await open(await getVideo("../a/" + x.audio).catch(() => fetchVideo("../a/" + x.audio)));
-    if (AUD && AUD.src) URL.revokeObjectURL(AUD.src);
-    AUD = new Audio(URL.createObjectURL(new Blob([b], { type: "audio/mpeg" }))); AUD_ID = x.id;
+    if (AUD_EL.src && AUD_EL.src.startsWith("blob:")) URL.revokeObjectURL(AUD_EL.src);
+    AUD_EL.src = URL.createObjectURL(new Blob([b], { type: "audio/mpeg" })); AUD_EL.load();
+    AUD = AUD_EL; AUD_ID = x.id;
     AUD.onended = () => { $("#kplay") && ($("#kplay").textContent = "▶︎ Слушать"); };
     return AUD;
   };
@@ -936,10 +948,12 @@ async function bindKaraoke(x) {
     const on = box.querySelector(".kw.on"); if (on && !AUD.paused) { const r = on.getBoundingClientRect(); if (r.top < 120 || r.bottom > innerHeight - 80) on.scrollIntoView({ block: "center", behavior: "smooth" }); }
     if (!AUD.paused) requestAnimationFrame(tick);
   };
-  $("#kplay").onclick = async () => { const a = await ensure(); if (a.paused) { a.play(); $("#kplay").textContent = "⏸ Пауза"; tick(); } else { a.pause(); $("#kplay").textContent = "▶︎ Слушать"; } };
-  $("#kslow").onclick = async () => { const a = await ensure(); a.playbackRate = a.playbackRate === 1 ? 0.8 : 1; $("#kslow").textContent = a.playbackRate === 1 ? "1×" : "0.8×"; };
-  spans.forEach((sp) => sp.onclick = async () => { const a = await ensure(); const m = marks[KMAP[+sp.dataset.k]]; if (m) a.currentTime = Math.max(0, m[1] - 0.05);
-    a.play(); $("#kplay").textContent = "⏸ Пауза"; tick(); });
+  const playIt = (a) => { const p = a.play(); $("#kplay").textContent = "⏸ Пауза"; tick();
+    if (p && p.catch) p.catch((e) => { $("#kplay").textContent = "▶︎ Слушать"; toast("Звук не запустился: нажми «Слушать» ещё раз"); }); };
+  $("#kplay").onclick = async () => { unlockAudio(); const a = await ensure(); if (a.paused) playIt(a); else { a.pause(); $("#kplay").textContent = "▶︎ Слушать"; } };
+  $("#kslow").onclick = async () => { unlockAudio(); const a = await ensure(); a.playbackRate = a.playbackRate === 1 ? 0.8 : 1; $("#kslow").textContent = a.playbackRate === 1 ? "1×" : "0.8×"; };
+  spans.forEach((sp) => sp.onclick = async () => { unlockAudio(); const a = await ensure(); const m = marks[KMAP[+sp.dataset.k]];
+    if (m) a.currentTime = Math.max(0, m[1] - 0.05); playIt(a); });
 }
 
 function bindInfo(x) {
