@@ -308,9 +308,11 @@ if ($("#exp")) $("#exp").onclick = async () => {
 // same key; commands travel over ntfy.sh on a secret topic derived from the key (commands only, never the scripts)
 async function topic() { const h = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(K + ":remote")));
   return "tp-" + [...h.slice(0, 12)].map(b => b.toString(16).padStart(2, "0")).join(""); }
-let T = null;
+let T = null, phone = false;
+// 30.10: статус шлём, только если пульт-телефон реально прислал команду; иначе каждое нажатие геймпада съедало дневной лимит ntfy
+// (~250 сообщений на IP), и в тот же вечер вставали кнопки приложения chaga-app с того же Wi-Fi
 function report() {
-  if (!T) return;
+  if (!T || !phone) return;
   const it = cur >= 0 && $("#stage").style.display === "block" ? items[cur] : null;
   fetch("https://ntfy.sh/" + T + "-s", { method: "POST", body: JSON.stringify({ tag: it ? it.tag : "", text: it ? it.text.split("\n")[0].slice(0, 80) : "",
     playing, speed: S.speed, done: it ? done.has(it.id) : false }) }).catch(() => {});
@@ -335,7 +337,7 @@ function remote(cmd) {
   if (!K) return;
   T = await topic();
   const es = new EventSource("https://ntfy.sh/" + T + "/sse");
-  es.onmessage = e => { try { const m = JSON.parse(e.data); if (m.event === "message") remote(m.message.trim()); } catch (x) {} };
+  es.onmessage = e => { try { const m = JSON.parse(e.data); if (m.event === "message") { phone = true; remote(m.message.trim()); } } catch (x) {} };
   es.onopen = () => report();
 })();
 // PS5 DualSense / any gamepad (Alex 16.10: «у меня есть геймпад плейстейшн 5»). Standard mapping:
