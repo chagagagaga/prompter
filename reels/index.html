@@ -238,7 +238,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-29-icons";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-30-pin";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -634,7 +634,9 @@ function render() {
     : st(x) === tab));
   if (q && !shown.length) shown = base;
   const order = { you: 0, work: 1, queue: 2, review: 3, failed: 4, script: 5, done: 6, off: 7 };
-  shown.sort((a, b) => (tab === "work" ? a.queue_pos - b.queue_pos || (order[a.state] - order[b.state]) : 0) || b.id.localeCompare(a.id));
+  shown.sort((a, b) => (tab === "work" ? a.queue_pos - b.queue_pos || (order[a.state] - order[b.state]) : 0)
+    || ((b.pin ? 1 : 0) - (a.pin ? 1 : 0))  // 30.10, Alex: a fresh hype script stands first («показать первым сверху»)
+    || b.id.localeCompare(a.id));
   if (tab === "anim" && !q) shown.sort((a, b) => (ANIM_O[st(a)] ?? 9) - (ANIM_O[st(b)] ?? 9) || b.id.localeCompare(a.id));
   if (tab === "plan" && !q) shown.sort((a, b) => (a.when || "").localeCompare(b.when || ""));  // the nearest first
   if (tab === "out" && !q) shown.sort((a, b) => (b.out || "").localeCompare(a.out || ""));    // the latest first
