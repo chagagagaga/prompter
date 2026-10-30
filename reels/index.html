@@ -241,7 +241,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-30-copy";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-30-score";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -787,7 +787,7 @@ const NEXT = { work: "Ролик делается. Кнопки появятся
 // 24.10, Alex: funnel block and «адаптация хита» right on the card, outside and inside
 const BLOCK_EMO = { "охват": "📣", "хайп": "🔥", "экспертный": "🧠", "продающий": "💰" };
 // 30.10: the overall score of a card = the mean of its agents' last scores (the same number in the list and inside)
-const totalOf = (x) => { const v = Object.values(x.scores || {}).map(Number).filter((n) => !isNaN(n)); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : null; };
+const totalOf = (x) => { const v = Object.values(x.scores || {}).map(Number).filter((n) => !isNaN(n) && n >= 0 && n <= 10); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : null; };
 const clsOf = (v, g = 8) => (+v >= g ? "g" : +v >= 6 ? "y" : "r");
 const blockChip = (x) => (x.anim ? `<span class="chip" style="background:rgba(120,90,255,.22)">🎨 анимация</span>` : "") + (x.block ? `<span class="chip">${BLOCK_EMO[x.block] || ""} ${esc(x.block)}</span>` : "") + (x.adapt ? (x.copy ? `<span class="chip" style="background:rgba(80,180,255,.2)">🔁 копия</span>` : `<span class="chip" style="background:rgba(255,200,0,.18)">♻️ адаптация</span>`) : "");
 function blockHtml(x) {
