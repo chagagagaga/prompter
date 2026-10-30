@@ -63,6 +63,9 @@ main { padding: 12px 16px 40px; }
 .scores { display: flex; gap: 4px; }
 .sc { font-size: 12px; font-weight: 700; border-radius: 6px; padding: 2px 6px; background: var(--card2); font-variant-numeric: tabular-nums; }
 .sc.g { color: #5fdb7f; } .sc.y { color: var(--accent); } .sc.r { color: #ff7a71; }
+.sc.total { border: 2px solid currentColor; padding: 1px 7px; font-size: 13px; }
+.scores { display: inline-flex; flex-wrap: wrap; gap: 4px; max-width: 100%; }
+.item .body .row { flex-wrap: wrap; min-width: 0; }
 .step { font-size: 12px; color: #5eb0ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .empty { color: var(--mute); text-align: center; padding: 50px 20px; }
 /* detail */
@@ -238,7 +241,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-30-pin";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-30-total";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -647,12 +650,14 @@ function render() {
     const g = !q && tab === "anim" ? "🎨 " + (ANIM_G[st(x)] || st(x))
       : !q && okT(pd) ? `${tab === "plan" ? "🗓" : "📢"} ${pd.slice(8, 10)}.${pd.slice(5, 7)}` : `Батч ${day(x)} · ${x.lang}` + (tab === "scripts" && !q ? ` · ${SUBN[sgOf(x)]}` : "");
     if (g !== grp) { html += `<div class="group">${g}</div>`; grp = g; }
-    const scs = Object.values(x.scores || {}).map((v) => `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}">${Number(v) || 0}</span>`).join("")
-      + (x.hookdir && x.hookdir.s_open != null ? `<span class="sc ${x.hookdir.s_open >= 7 ? "g" : x.hookdir.s_open >= 6 ? "y" : "r"}">🎣${Number(x.hookdir.s_open) || 0}</span>` : "")
-      // 29.10, Alex: icons of the new script system: 📖 развёрнутый, ✒️ перо (na-pero), ⚖️ юрист
+    // 30.10, Alex: «на первое место общую оценку в рамке», the new agents (✒️ перо, ⚖️ юрист, 📖) right after it, and the
+    // whole row wraps inside the card (they were pushed past its right edge)
+    const scs = (totalOf(x) != null ? `<span class="sc total ${clsOf(totalOf(x))}" title="общая оценка: среднее всех агентов">${totalOf(x)}</span>` : "")
+      + (x.pero != null ? `<span class="sc ${clsOf(x.pero)}" title="перо: текст">✒️${Number(x.pero) || 0}</span>` : "")
+      + (x.legal != null ? `<span class="sc ${clsOf(x.legal)}" title="юрист: риски">⚖️${Number(x.legal) || 0}</span>` : "")
       + (x.deep ? `<span class="sc g" title="развёрнутый, ${x.words} слов">📖</span>` : "")
-      + (x.pero != null ? `<span class="sc ${x.pero >= 8 ? "g" : x.pero >= 6 ? "y" : "r"}" title="перо: текст">✒️${Number(x.pero) || 0}</span>` : "")
-      + (x.legal != null ? `<span class="sc ${x.legal >= 8 ? "g" : x.legal >= 6 ? "y" : "r"}" title="юрист: риски">⚖️${Number(x.legal) || 0}</span>` : "");
+      + (x.hookdir && x.hookdir.s_open != null ? `<span class="sc ${clsOf(x.hookdir.s_open, 7)}">🎣${Number(x.hookdir.s_open) || 0}</span>` : "")
+      + Object.entries(x.scores || {}).filter(([k]) => !/^(✒️|⚖️)/.test(k)).map(([k, v]) => `<span class="sc ${v >= 7 ? "g" : v >= 6 ? "y" : "r"}" title="${esc(k)}">${Number(v) || 0}</span>`).join("");
     const pp = pendOf(x);
     const chip = pp ? "⏳ " + pp.a : x.state === "review" && x.sg && x.sg !== "you" ? x.status : x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}` : x.master === "rendering" ? "Рендерю 1440" : lbl(x);
     html += `<div class="item" data-id="${x.id}">
@@ -781,6 +786,9 @@ const NEXT = { work: "Ролик делается. Кнопки появятся
   script: "Сценарий одобрен, ждёт записи. После записи ролик смонтируется сам.", off: "Решили не выкладывать." };
 // 24.10, Alex: funnel block and «адаптация хита» right on the card, outside and inside
 const BLOCK_EMO = { "охват": "📣", "хайп": "🔥", "экспертный": "🧠", "продающий": "💰" };
+// 30.10: the overall score of a card = the mean of its agents' last scores (the same number in the list and inside)
+const totalOf = (x) => { const v = Object.values(x.scores || {}).map(Number).filter((n) => !isNaN(n)); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : null; };
+const clsOf = (v, g = 8) => (+v >= g ? "g" : +v >= 6 ? "y" : "r");
 const blockChip = (x) => (x.anim ? `<span class="chip" style="background:rgba(120,90,255,.22)">🎨 анимация</span>` : "") + (x.block ? `<span class="chip">${BLOCK_EMO[x.block] || ""} ${esc(x.block)}</span>` : "") + (x.adapt ? `<span class="chip" style="background:rgba(255,200,0,.18)">♻️ адаптация</span>` : "");
 function blockHtml(x) {
   let h = "";
@@ -836,8 +844,8 @@ function infoHtml(x) {
   if (x.speech) h += `<div class="box speech"><h3>🎙 Криво в речи</h3><div class="pack">${esc(x.speech)}</div></div>`;
   if (x.state === "review" && x.scores && Object.keys(x.scores).length) {  // 25.10, Alex: the agents' scores on top, short
     const vals = Object.values(x.scores).map(Number).filter((v) => !isNaN(v));
-    const avg = x.score || (vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : "");
-    h += `<div class="box"><h3>Оценки агентов · итог ${sc(Number(avg))} ${esc(String(avg))}${x.deep ? ` · 📖 развёрнутый, ${x.words} слов` : ""}</h3><div class="row" style="flex-wrap:wrap;gap:6px">${Object.entries(x.scores).map(([k, v]) => `<span class="chip">${esc(k)} ${sc(Number(v))}</span>`).join("")}</div></div>`;
+    const avg = totalOf(x) || "";  // 30.10: the same overall score as on the list (mean of the agents), not the writer's own
+    h += `<div class="box"><h3>Оценки агентов · <span class="sc total ${clsOf(avg)}" style="font-size:15px">общая ${esc(String(avg))}</span>${x.deep ? ` · 📖 развёрнутый, ${x.words} слов` : ""}</h3><div class="row" style="flex-wrap:wrap;gap:6px">${Object.entries(x.scores).map(([k, v]) => `<span class="chip">${esc(k)} ${sc(Number(v))}</span>`).join("")}</div></div>`;
   }
   h += blockHtml(x);
   if (x.trial !== undefined && (x.trial || x.trial_hook)) h += `<div class="box"><h3>🧪 Пробная версия (только Instagram)</h3><div class="hint" style="font-size:14px">Хук: ${esc(x.trial_hook || "")}<br>Другие картинки и кадр 0. Выйдет пробным роликом, основная лента её не видит.</div>${x.trial ? `<div class="hint">Видео пробной версии открыто вверху, под основной.</div>` : `<div class="hint">Видео ещё делается</div>`}</div>`;
