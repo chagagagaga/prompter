@@ -241,7 +241,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-30-audio";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-31-long";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -637,7 +637,8 @@ function render() {
     : st(x) === tab));
   if (q && !shown.length) shown = base;
   const order = { you: 0, work: 1, queue: 2, review: 3, failed: 4, script: 5, done: 6, off: 7 };
-  shown.sort((a, b) => (tab === "work" ? a.queue_pos - b.queue_pos || (order[a.state] - order[b.state]) : 0)
+  shown.sort((a, b) => ((b.long ? 1 : 0) - (a.long ? 1 : 0))  // 31.10, Alex: long videos first, marked 🎬
+    || (tab === "work" ? a.queue_pos - b.queue_pos || (order[a.state] - order[b.state]) : 0)
     || ((b.pin ? 1 : 0) - (a.pin ? 1 : 0))  // 30.10, Alex: a fresh hype script stands first («показать первым сверху»)
     || b.id.localeCompare(a.id));
   if (tab === "anim" && !q) shown.sort((a, b) => (ANIM_O[st(a)] ?? 9) - (ANIM_O[st(b)] ?? 9) || b.id.localeCompare(a.id));
@@ -649,7 +650,8 @@ function render() {
     const pd = tab === "plan" ? x.when : tab === "out" ? x.out : "";
     const g = !q && tab === "anim" ? "🎨 " + (ANIM_G[st(x)] || st(x))
       : !q && okT(pd) ? `${tab === "plan" ? "🗓" : "📢"} ${pd.slice(8, 10)}.${pd.slice(5, 7)}` : `Батч ${day(x)} · ${x.lang}` + (tab === "scripts" && !q ? ` · ${SUBN[sgOf(x)]}` : "");
-    if (g !== grp) { html += `<div class="group">${g}</div>`; grp = g; }
+    const g2 = x.long && !q ? "🎬 Длинные ролики" : g;
+    if (g2 !== grp) { html += `<div class="group">${g2}</div>`; grp = g2; }
     // 30.10, Alex: «на первое место общую оценку в рамке», the new agents (✒️ перо, ⚖️ юрист, 📖) right after it, and the
     // whole row wraps inside the card (they were pushed past its right edge)
     const scs = (totalOf(x) != null ? `<span class="sc total ${clsOf(totalOf(x))}" title="общая оценка: kill 30%, факты 15%, продюсер 15%, стратегия, хук, перо, юрист по 10%">${totalOf(x)}</span>` : "")
@@ -663,7 +665,7 @@ function render() {
     html += `<div class="item" data-id="${x.id}">
       <div class="thumb" ${x.thumb ? `style="background-image:url(${x.thumb})"` : ""}>${x.thumb ? "" : `<div class="ph">${x.state === "script" ? "🎙" : x.state === "review" ? "📝" : "⏳"}</div>`}</div>
       <div class="body">
-        <div class="row">${isNew(x) ? '<span class="new"></span>' : ""}<span class="num">${esc(nm(x))}</span><span class="tg">батч ${day(x)}</span></div>
+        <div class="row">${isNew(x) ? '<span class="new"></span>' : ""}<span class="num">${esc(nm(x))}</span>${x.long ? '<span class="chip" style="background:#3a2a6a;color:#fff">🎬 Длинный</span>' : `<span class="tg">батч ${day(x)}</span>`}</div>
         <div class="row"><span class="chip ${pp ? "pend" : x.state}">${chip}</span>${x.status === "4К готов" && !x.anim ? '<span class="chip">1440</span>' : ""}${pubChips(x)}<span class="scores">${scs}</span></div>
         <div class="row">${blockChip(x)}</div>
         <div class="hook">${esc(x.hook)}</div>
