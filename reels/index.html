@@ -241,7 +241,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-10-31-long";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-10-31-covers";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -865,6 +865,10 @@ function infoHtml(x) {
     if (x.edit) h += `<div class="box"><h3>Твоя правка</h3><div class="pack">${esc(x.edit)}</div></div>`;
     return h;
   }
+  // 31.10, Alex: the long video's YouTube thumbnails next to the video (the best first, the variants for Test & Compare)
+  if ((x.covers || []).length) h += `<div class="box"><h3>Обложки YouTube</h3>${x.covers.map((c, i) =>
+    `<div style="margin:8px 0"><div class="hint">${i ? "Вариант " + String.fromCharCode(65 + i) : "Лучший (A, ставится первым)"}</div>
+     <img src="${c}" style="width:100%;border-radius:10px;display:block;margin-top:4px"></div>`).join("")}</div>`;
   for (const s of x.sections || []) {
     h += `<details class="box"><summary><h3 style="display:inline">${esc(s.t)}</h3></summary><div style="margin-top:10px">`;
     if (s.note) h += `<div class="hint" style="font-size:14px;color:#5fdb7f;margin-bottom:8px">${esc(s.note)}</div>`;
