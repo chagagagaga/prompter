@@ -856,7 +856,7 @@ function infoHtml(x) {
     h += `<div class="box"><h3>Оценки агентов · <span class="sc total ${clsOf(avg)}" style="font-size:15px">общая ${esc(String(avg))}</span>${x.deep ? ` · 📖 развёрнутый, ${x.words} слов` : ""}</h3><div class="row" style="flex-wrap:wrap;gap:6px">${Object.entries(x.scores).map(([k, v]) => `<span class="chip">${esc(k)} ${sc(Number(v))}</span>`).join("")}</div></div>`;
   }
   h += blockHtml(x);
-  if (x.trial !== undefined && (x.trial || x.trial_hook)) h += `<div class="box"><h3>🧪 Пробная версия (только Instagram)</h3><div class="hint" style="font-size:14px">Хук: ${esc(x.trial_hook || "")}<br>Другие картинки и кадр 0. Выйдет пробным роликом, основная лента её не видит.</div>${x.trial ? `<div class="hint">Видео пробной версии открыто вверху, под основной.</div>` : `<div class="hint">Видео ещё делается</div>`}</div>`;
+  if (x.trial !== undefined && (x.trial || x.trial_hook)) h += `<div class="box"><h3>🧪 Пробная версия (только Instagram)</h3><div class="hint" style="font-size:14px">Хук: ${esc(x.trial_hook || "")}<br>Другие картинки и кадр 0. Выйдет пробным роликом, основная лента её не видит.</div>${(x.trial_notes||[]).length ? `<div class="hint" style="color:#c80">⚠️ Пришла с замечаниями (не прошла проверку после доработки), решай сам:<br>${x.trial_notes.map(esc).join("<br>")}</div>` : ""}${x.trial ? `<div class="hint">Видео пробной версии открыто вверху, под основной.</div>` : `<div class="hint">Видео ещё делается</div>`}</div>`;
   if (x.hookdir) h += hookHtml(x.hookdir);
   if (x.audio && (x.state === "review" || x.state === "script")) h += karaokeHtml(x);
   if (x.state === "review") {
