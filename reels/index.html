@@ -241,7 +241,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-11-01-longbtn";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-11-05-fastdata";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -283,9 +283,9 @@ async function open(buf) {
 // GitHub Pages rebuilds ~1 min after a push; the API serves the pushed file at once (a 304 is free of the rate limit)
 const API = "https://api.github.com/repos/chagagagaga/prompter/contents/reels/";
 let GHT = "";
-async function viaApi(path) {
+async function viaApi(path, ref) {
   const h = { Accept: "application/vnd.github.raw" }; if (GHT) h.Authorization = "Bearer " + GHT;  // 5000 reads an hour
-  const r = await fetch(API + path + "?ref=main", { headers: h, cache: "no-cache" });
+  const r = await fetch(API + path + "?ref=" + (ref || "main"), { headers: h, cache: "no-cache" });
   if (!r.ok) throw new Error(r.status);
   return r.arrayBuffer();
 }
@@ -294,9 +294,15 @@ async function viaPages(path, fresh) {
   if (!r.ok) throw new Error(r.status);
   return r.arrayBuffer();
 }
-async function getData() { try { return await viaApi("data.bin"); } catch (e) { return viaPages("data.bin", true); } }
+// 05.11: the data first from the branch «appdata» (pushed within seconds of every change, no Pages build), then main, then Pages
+async function getAny(path) {
+  try { return await viaApi(path, "appdata"); } catch (e) {}
+  try { return await viaApi(path, "main"); } catch (e) {}
+  return viaPages(path, true);
+}
+async function getData() { return getAny("data.bin"); }
 // 17.10: the compressed copy (~3x smaller); the plain data.bin stays for old cached copies of this page
-async function getDataGz() { try { return await viaApi("data.gz.bin"); } catch (e) { return viaPages("data.gz.bin", true); } }
+async function getDataGz() { return getAny("data.gz.bin"); }
 async function gunzip(buf) {
   const ds = new DecompressionStream("gzip");
   return new Response(new Blob([buf]).stream().pipeThrough(ds)).arrayBuffer();
@@ -383,6 +389,24 @@ const sgOf = (x) => { const p = pendOf(x);
 const side = (x) => x.state === "review" && ["trash", "reserve", "ok"].includes(sgOf(x));  // decided: not on the main desk
 const st = (x) => { const e = eff(x); if (e === "done" && x.pend) return "plan"; if (e === "done" && x.out) return "out"; if (e === "done" && x.when && ["Запланирован", "▶️ К выкладке"].includes(x.status)) return "plan"; return e === "queue" || e === "work" ? "work" : ["review", "script"].includes(x.state) ? "scripts" : e; };
 
+// 05.11, Alex: «данные должны быть актуальные». The sync refreshes «updated» at least every 10 min even when nothing changed,
+// so data 25+ min old means the updates are stuck: say so instead of showing old data as live
+function staleMin(u) {  // «dd.mm HH:MM» (Almaty) -> minutes behind Almaty now, or null
+  const m = /^(\d\d)\.(\d\d) (\d\d):(\d\d)$/.exec(u || ""); if (!m) return null;
+  try {
+    const p = {}; new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Almaty", year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date()).forEach((x) => p[x.type] = x.value);
+    const now = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute);
+    let t = Date.UTC(+p.year, +m[2] - 1, +m[1], +m[3], +m[4]);
+    if (t - now > 864e5) t = Date.UTC(+p.year - 1, +m[2] - 1, +m[1], +m[3], +m[4]);
+    return Math.round((now - t) / 6e4);
+  } catch (e) { return null; }
+}
+function updLine() {
+  const s = staleMin(DATA.updated);
+  $("#upd").innerHTML = s !== null && s >= 25 ? "⚠️ данные от " + DATA.updated + " (Алматы): обновление задерживается " + s + " мин"
+    : '<span class="live"></span>обновлено ' + DATA.updated + ' (Алматы)';
+}
 async function load() {
   if (!K) { $("#lock").textContent = "Открой ссылку из бота: в ней ключ."; return; }
   try {
@@ -391,7 +415,7 @@ async function load() {
     let fresh; try { fresh = await freshData(); } finally { LOADING = false; }
     DATA = fresh;
     try { localStorage.setItem("dcache", JSON.stringify(DATA)); } catch (e) {}  // the next start shows this at once
-    $("#upd").innerHTML = '<span class="live"></span>обновлено ' + DATA.updated + ' (Алматы)';
+    updLine();
     if (DATA.app && DATA.app !== APP_VER && !sessionStorage.getItem("rl" + DATA.app)) {
       sessionStorage.setItem("rl" + DATA.app, "1"); location.replace(location.pathname + "?v=" + Date.now() + (qs.get("k") ? "&k=" + K : "") + (location.hash || "")); return;
     }
