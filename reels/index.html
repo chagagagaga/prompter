@@ -241,7 +241,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-11-06-media2";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-11-06-storyboard";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -354,6 +354,15 @@ function preload(x, onp) {  // decrypted ahead, so opening the card plays at onc
     while (ks.length > 8) { const old = ks.shift(); if (PLAYER && PLAYER.src === vids[old]) continue; URL.revokeObjectURL(vids[old]); delete vids[old]; delete pre[old]; }
   }).catch(() => { delete pre[x.video]; });
   return pre[x.video];
+}
+// 06.11: storyboard sheets are encrypted images in the media branch; decrypted one by one when the card opens
+const SBU = {};
+async function loadSB() {
+  for (const im of document.querySelectorAll("img.sbf[data-sb]")) {
+    if (im.dataset.ld) continue; im.dataset.ld = "1"; const n = im.dataset.sb;
+    try { if (!SBU[n]) SBU[n] = URL.createObjectURL(new Blob([await open(await getVideo(n))], { type: "image/jpeg" })); im.src = SBU[n]; }
+    catch (e) { im.alt = "лист не загрузился, обнови"; delete im.dataset.ld; }
+  }
 }
 async function prefetchAll() {
   // decrypted in memory: only what waits for him; the rest just lands in the phone's cache (disk), seconds to open
@@ -747,6 +756,8 @@ function actions(x) {
   const b = [];
   // 01.11, Alex: long videos have their own buttons (no X / Threads / 1440 / Instagram words), and they must work
   if (x.long) {
+    // 06.11, Alex: the storyboard (frame sheets + draft animatic) first; ✅ = render the final, it comes back for the final check
+    if (x.state === "you" && x.stage === "storyboard") return [["lfs", "✅ Раскадровка ок, рендерь финал", "main"], ["lfn", "✏️ Замечания к раскадровке", ""]];
     if (x.state === "you") return [["lfa", "✅ Одобряю, ставь на выход YouTube", "main"], ["lfn", "✏️ Замечания к длинному ролику", ""]];
     if (x.state === "done") return [["lfc", "🚫 Снять с выхода", "bad"]];
     return [];
@@ -899,6 +910,10 @@ function infoHtml(x) {
     return h;
   }
   // 31.10, Alex: the long video's YouTube thumbnails next to the video (the best first, the variants for Test & Compare)
+  // 06.11: storyboard = the episode frame by frame (a frame every 2 s, 24 per sheet, the second of the video under each)
+  if ((x.frames || []).length) { h += `<div class="box"><h3>Раскадровка: кадр каждые 2 с</h3><div class="hint">Подпись под кадром = секунда ролика. Сверху черновой аниматик (низкое качество, для темпа и движения).</div>${x.frames.map((n, i) =>
+    `<div style="margin:10px 0"><div class="hint">Лист ${i + 1} из ${x.frames.length}</div><img class="sbf" data-sb="${n}" alt="лист ${i + 1}" style="width:100%;min-height:120px;border-radius:10px;display:block;margin-top:4px;background:#222"></div>`).join("")}</div>`;
+    setTimeout(loadSB, 300); setTimeout(loadSB, 1500); }
   if ((x.covers || []).length) h += `<div class="box"><h3>Обложки YouTube</h3>${x.covers.map((c, i) =>
     `<div style="margin:8px 0"><div class="hint">${i ? "Вариант " + String.fromCharCode(65 + i) : "Лучший (A, ставится первым)"}</div>
      <img src="${c}" style="width:100%;border-radius:10px;display:block;margin-top:4px"></div>`).join("")}</div>`;
