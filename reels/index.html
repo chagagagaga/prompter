@@ -241,7 +241,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-11-06-storyboard";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-11-06-fresh";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -254,7 +254,8 @@ const ANIM_O = { you: 0, failed: 1, work: 2, done: 3, plan: 4, out: 5 };
 const TABS = [["scripts", "Сценарии"], ["status", "Статус"], ["you", "Ждут тебя"], ["anim", "🎨 Анимации"], ["work", "В работе"], ["failed", "Не прошли"], ["done", "⏳ Ждут публикации"], ["plan", "🗓 Запланированы"], ["out", "📢 Опубликовано"], ["cal", "📅 Календарь"], ["off", "🚫 Не выкладываем"], ["all", "Все"]];
 const dm = (t) => t.slice(8, 10) + "." + t.slice(5, 7) + " " + t.slice(11, 16);
 // 19.10: the planned and the real publishing time on every card and list row: «🗓 План 20.10 11:00 · 📢 Выложен 20.10 11:02»
-const lbl = (x) => x.state === "done" && x.pend ? ((x.pubs || []).some((p) => p.st === "out") ? "🗓 Частично вышел" : "🗓 Запланирован") : x.state === "done" && x.out ? "📢 Опубликован" : x.state === "done" && x.when && ["Запланирован", "▶️ К выкладке"].includes(x.status) ? `🗓 Поставлено на выкладку ${dm(x.when)}, выйдет само` : LABEL[x.state];
+const lbl = (x) => x.state === "done" && x.pend ? ((x.pubs || []).some((p) => p.st === "out") ? "🗓 Частично вышел" : "🗓 Запланирован") : x.state === "done" && x.out ? "📢 Опубликован" : x.state === "done" && x.when && ["Запланирован", "▶️ К выкладке"].includes(x.status) ? `🗓 Поставлено на выкладку ${dm(x.when)}, выйдет само`
+  : x.state === "done" && x.status === "4К готов" && !x.when && !x.long ? "⏳ Мастер готов, ждёт слота" : LABEL[x.state];  // 06.11: not «собираю мастер»
 const okT = (t) => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(t || "");
 const pubChips = (x) => (okT(x.when) && (x.pend || !x.out) ? `<span class="chip">🗓 ${x.pend && (x.pubs || []).some((p) => p.st === "out") ? "Дальше" : "План"} ${dm(x.when)}</span>` : "") + (okT(x.out) ? `<span class="chip">📢 Выложен ${dm(x.out)}</span>` : "");
 // 19.10: every platform with its own status and time: «✅ TikTok 19.10 20:21 · авто», «🗓 Instagram 20.10 18:00 · вручную»
@@ -425,6 +426,10 @@ async function load() {
     const prev = DATA;
     if (LOADING) return; LOADING = true;
     let fresh; try { fresh = await freshData(); } finally { LOADING = false; }
+    // 06.11, Alex: «в приложении должны быть только актуальные данные». When the branch «appdata» did not answer, the copy
+    // came from main / Pages (10+ min behind, hours after a failed Pages deployment) or the plain data.bin (written once
+    // per app version): an OLDER state replaced the newer one on the screen (cards back in old tabs). Never older.
+    if (prev && (fresh.ts || 0) < (prev.ts || 0)) { updLine(); return; }
     DATA = fresh;
     try { localStorage.setItem("dcache", JSON.stringify(DATA)); } catch (e) {}  // the next start shows this at once
     updLine();
@@ -439,7 +444,12 @@ async function load() {
       if (fresh.length) toast("🆕 " + fresh.map((x) => `${nm(x)}: ${LABEL[x.state].toLowerCase()}`).join(", "));
     }
     render();
-    if (cur) { const x = DATA.items.find((i) => i.id === cur); if (x) fillDetail(x, false); }
+    if (cur) { const x = DATA.items.find((i) => i.id === cur), o = prev && prev.items.find((i) => i.id === cur);
+      // 06.11: a refresh redrew only the text part of an open card: a new version (video, trial, the scores under the
+      // video, storyboard sheets) stayed old on the screen until he closed and reopened it. Not while he types a note.
+      const med = (y) => JSON.stringify(y ? [y.video, y.trial, y.scores, y.cap_scores, y.text_scores, y.frames] : null);
+      const typing = $("#form") && ($("#form").classList.contains("on") || ($("#txt") && $("#txt").value));
+      if (x) { if (o && med(o) !== med(x) && !typing) { infoSig = ""; fillDetail(x); } else fillDetail(x, false); } }
   } catch (e) { if (!DATA) $("#lock").textContent = "Не открылось: неверный ключ или нет сети."; else $("#upd").innerHTML = "⚠️ нет сети · данные от " + DATA.updated + " (Алматы)"; }
 }
 
@@ -464,7 +474,7 @@ function statusView(base) {
     html += `<div class="group">${names[g]} · ${xs.length}</div>`;
     for (const x of xs) {
       const what = g === "work" ? (x.master === "rendering" ? "Рендерю 1440" : x.step || "в работе") : g === "queue" ? (x.queue_pos ? `${x.queue_pos}-й в очереди` : "ждёт линию")
-        : g === "you" ? (x.status === "4К готов" ? "готов: выкладывать?" : "1080 на проверку") : g === "failed" ? "оценки " + Object.values(x.scores || {}).join("/") + (x.step ? " · " + x.step : "")
+        : g === "you" ? (x.long ? (x.stage === "storyboard" ? "раскадровка на проверку" : "финал на проверку") : x.status === "4К готов" ? "готов: выкладывать?" : "1080 на проверку") : g === "failed" ? "оценки " + Object.values(x.scores || {}).join("/") + (x.step ? " · " + x.step : "")
         : g === "review" ? x.status : g === "done" ? (pubText(x) || x.status) : x.status;
       html += `<div class="srow item" data-id="${x.id}"><span class="num">${esc(nm(x))}<div class="when">${day(x)}</div></span>
         <div style="min-width:0"><div class="what">${isNew(x) ? '<span class="new" style="display:inline-block;margin-right:6px"></span>' : ""}${esc(what)}</div>
