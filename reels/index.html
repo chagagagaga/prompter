@@ -80,6 +80,7 @@ main { padding: 12px 16px 40px; }
 .player { width: 100%; aspect-ratio: 9/16; max-height: 72vh; background: #000; border-radius: 16px; overflow: hidden; display: grid; place-items: center;
   margin: 0 auto; }
 .player video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+.player.wide { aspect-ratio: 16/9; max-height: 40vh; }
 .player .ld { color: var(--mute); }
 .acts { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
 .btn { border: 0; border-radius: 14px; padding: 15px; font-size: 16px; font-weight: 700; color: var(--text); background: var(--card2); text-align: center; }
@@ -241,7 +242,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-11-06-fresh";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-11-12-ux";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -255,7 +256,8 @@ const TABS = [["scripts", "Сценарии"], ["status", "Статус"], ["you
 const dm = (t) => t.slice(8, 10) + "." + t.slice(5, 7) + " " + t.slice(11, 16);
 // 19.10: the planned and the real publishing time on every card and list row: «🗓 План 20.10 11:00 · 📢 Выложен 20.10 11:02»
 const lbl = (x) => x.state === "done" && x.pend ? ((x.pubs || []).some((p) => p.st === "out") ? "🗓 Частично вышел" : "🗓 Запланирован") : x.state === "done" && x.out ? "📢 Опубликован" : x.state === "done" && x.when && ["Запланирован", "▶️ К выкладке"].includes(x.status) ? `🗓 Поставлено на выкладку ${dm(x.when)}, выйдет само`
-  : x.state === "done" && x.status === "4К готов" && !x.when && !x.long ? "⏳ Мастер готов, ждёт слота" : LABEL[x.state];  // 06.11: not «собираю мастер»
+  : x.state === "done" && x.status === "4К готов" && !x.when && !x.long ? (x.wait || "⏳ Мастер готов, ждёт слота")
+  : x.long && x.state === "done" ? "✅ Одобрен, выйдет на YouTube в свой слот" : LABEL[x.state];  // 06.11: not «собираю мастер»
 const okT = (t) => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(t || "");
 const pubChips = (x) => (okT(x.when) && (x.pend || !x.out) ? `<span class="chip">🗓 ${x.pend && (x.pubs || []).some((p) => p.st === "out") ? "Дальше" : "План"} ${dm(x.when)}</span>` : "") + (okT(x.out) ? `<span class="chip">📢 Выложен ${dm(x.out)}</span>` : "");
 // 19.10: every platform with its own status and time: «✅ TikTok 19.10 20:21 · авто», «🗓 Instagram 20.10 18:00 · вручную»
@@ -268,8 +270,15 @@ let SEEN = {};
 try { SEEN = JSON.parse(localStorage.getItem("seen") || "{}"); } catch (e) {}
 const saveSeen = () => { try { localStorage.setItem("seen", JSON.stringify(SEEN)); } catch (e) {} };
 const sig = (x) => x.state + "|" + x.status + "|" + (x.video || "");
+// 12.11 (Fable 4.6 / Opus): a press whose card did not change in 20 min used to fall back silently; now he is told.
+// ft / fz (texts only) and vn / ve (wait for his voice) never change the card, so they just expire
+const LOST_SKIP = { ft: 1, fz: 1, vn: 1, ve: 1, rn: 1 };
+let FRESH = false;
 const pendOf = (x) => { const p = PEND[x.id]; if (!p) return null;
-  if (p.sig !== sig(x) || Date.now() - p.t > 20 * 60000) { delete PEND[x.id]; savePend(); return null; } return p; };
+  if (p.sig !== sig(x) || Date.now() - p.t > 20 * 60000) {
+    if (p.sig === sig(x) && !FRESH) return p;  // the cached copy at start: wait for the fresh data before deciding
+    if (p.sig === sig(x) && !LOST_SKIP[p.c]) setTimeout(() => toast(`⚠️ ${nm(x)}: «${p.a}» не сработало за 20 мин. Нажми ещё раз или напиши боту /you`), 0);
+    delete PEND[x.id]; savePend(); return null; } return p; };
 const isNew = (x) => SEEN[x.id] !== undefined && SEEN[x.id] !== sig(x) && ["you", "failed", "done", "review"].includes(x.state)
   && !["trash", "reserve"].includes(x.sg);
 const vids = {};
@@ -430,7 +439,10 @@ async function load() {
     // came from main / Pages (10+ min behind, hours after a failed Pages deployment) or the plain data.bin (written once
     // per app version): an OLDER state replaced the newer one on the screen (cards back in old tabs). Never older.
     if (prev && (fresh.ts || 0) < (prev.ts || 0)) { updLine(); return; }
-    DATA = fresh;
+    // 12.11 (Fable 4.6): the list was rebuilt every 10 s even with the same data (a tap during the redraw was lost)
+    if (prev && FRESH && (fresh.ts === prev.ts || (fresh.h && fresh.h === prev.h)) && fresh.app === prev.app) {
+      prev.ts = fresh.ts; prev.updated = fresh.updated; updLine(); return; }
+    DATA = fresh; FRESH = true;
     try { localStorage.setItem("dcache", JSON.stringify(DATA)); } catch (e) {}  // the next start shows this at once
     updLine();
     if (DATA.app && DATA.app !== APP_VER && !sessionStorage.getItem("rl" + DATA.app)) {
@@ -441,7 +453,7 @@ async function load() {
     DATA.items.forEach((x) => { if (SEEN[x.id] === undefined) SEEN[x.id] = ""; });
     if (prev) {
       const fresh = DATA.items.filter((x) => { const o = prev.items.find((i) => i.id === x.id); return isNew(x) && (!o || sig(o) !== sig(x)); });
-      if (fresh.length) toast("🆕 " + fresh.map((x) => `${nm(x)}: ${LABEL[x.state].toLowerCase()}`).join(", "));
+      if (fresh.length) toast("🆕 " + fresh.map((x) => `${nm(x)}: ${String(lbl(x) || LABEL[x.state] || "").toLowerCase()}`).join(", "));
     }
     render();
     if (cur) { const x = DATA.items.find((i) => i.id === cur), o = prev && prev.items.find((i) => i.id === cur);
@@ -527,6 +539,7 @@ function calChip(e, nowS) {
   if (e.state === "fail") note = " · сбой";
   else if (e.state === "plan" && e.at < nowS) note = " · проверяю";
   else if (e.how === "вручную") note = e.state === "out" ? " · вручную" : " · сам";
+  else if (e.how === "пробный") note = " · пробный";
   else if (e.state === "out" && !e.url) note = " · ссылка позже";
   const inner = `<span class="cdot" style="background:${CAL_COL[e.platform] || "#888"}"></span>${ic} ${esc(e.platform)} ${esc(e.account)}<span class="mute">${note}</span>`;
   return e.url ? `<a class="cp ${e.state} lnk" href="${esc(e.url)}" target="_blank" rel="noopener">${inner} ↗</a>` : `<span class="cp ${e.state}">${inner}</span>`;
@@ -588,7 +601,7 @@ function calView() {
   const groups = [];
   es.forEach((e) => {
     const g = groups.find((x) => x.at === e.at && x.id === e.id);
-    if (g) g.es.push(e); else groups.push({ at: e.at, id: e.id, label: e.label, hook: e.hook, es: [e] });
+    if (g) g.es.push(e); else groups.push({ at: e.at, id: e.id, label: e.label, hook: e.hook, kind: e.kind, style: e.style, es: [e] });
   });
   if (!groups.length) {
     const nd = all.find((e) => e.at.slice(0, 10) > calDay);
@@ -600,11 +613,11 @@ function calView() {
     const past = g.es.every((e) => e.state === "out");
     const has = DATA.items.some((i) => i.id === g.id);
     h += `<div class="cal-r ${past ? "past" : ""}" data-cid="${g.id}"><div class="tm">${g.at.slice(11, 16)}<i>${past ? "вышло" : g.at < nowS ? "" : "план"}</i></div>
-      <div style="min-width:0"><div class="lb">${esc(g.label)}${has ? ' <span style="color:var(--mute);font-weight:600">›</span>' : ""}</div><div class="hk">${esc(g.hook)}</div>
+      <div style="min-width:0"><div class="lb">${g.kind === "anim" ? "🎨 " : g.kind === "face" ? "🙂 " : ""}${esc(g.label)}${g.kind === "anim" && g.style ? ` <span class="mute" style="font-weight:600">· ${esc(g.style)}</span>` : ""}${has ? ' <span style="color:var(--mute);font-weight:600">›</span>' : ""}</div><div class="hk">${esc(g.hook)}</div>
       <div class="cps">${g.es.map((e) => calChip(e, nowS)).join("")}</div></div></div>`;
   }
   if (!nowDone && groups.length) h += `<div class="cal-now">Сейчас ${nowS.slice(11, 16)}</div>`;
-  h += `<div class="cal-hint">Время Алматы · свайп по дню влево/вправо листает дни · ✅ со стрелкой открывает пост</div>`;
+  h += `<div class="cal-hint">Время Алматы · 🙂 с лицом, 🎨 анимация · свайп по дню влево/вправо листает дни · ✅ со стрелкой открывает пост</div>`;
   shown = groups.map((g) => DATA.items.find((i) => i.id === g.id)).filter((x, i, arr) => x && arr.indexOf(x) === i);
   const prevX = calStripX;
   $("#list").innerHTML = h;
@@ -669,7 +682,8 @@ function render() {
   const q = $("#q").value.trim();
   const base = DATA.items.filter((x) => (!lang || x.lang === lang) && match(x, q));
   const cnt = (t) => base.filter((x) => t === "all" ? !(st(x) === "scripts" && ["trash", "reserve"].includes(sgOf(x)))
-    : t === "status" ? ["work", "queue"].includes(eff(x)) : t === "scripts" ? st(x) === t && ["you", "edit"].includes(sgOf(x)) : st(x) === t).length;
+    : t === "status" ? ["work", "queue"].includes(eff(x)) : t === "scripts" ? st(x) === t && ["you", "edit"].includes(sgOf(x))
+    : t === "you" ? st(x) === "you" || (st(x) === "scripts" && sgOf(x) === "you") : st(x) === t).length;
   $("#tabs").innerHTML = TABS.map(([k, v]) => `<button class="tab ${k === tab ? "on" : ""}" data-t="${k}">${v}<b>${k === "cal" ? calCount() : cnt(k)}</b></button>`).join("");
   const scr = base.filter((x) => st(x) === "scripts");
   $("#stabs").innerHTML = tab !== "scripts" || q ? "" : SUBS.map(([k, v]) => { const xs = scr.filter((x) => sgOf(x) === k);
@@ -690,8 +704,10 @@ function render() {
   if (tab === "anim" && !q) shown.sort((a, b) => (ANIM_O[st(a)] ?? 9) - (ANIM_O[st(b)] ?? 9) || b.id.localeCompare(a.id));
   if (tab === "plan" && !q) shown.sort((a, b) => (a.when || "").localeCompare(b.when || ""));  // the nearest first
   if (tab === "out" && !q) shown.sort((a, b) => (b.out || "").localeCompare(a.out || ""));    // the latest first
-  if (!shown.length) { $("#list").innerHTML = `<div class="empty">${tab === "you" ? "Ничего не ждёт тебя 🎉" : tab === "scripts" && sub === "you" ? "Все сценарии разобраны 🎉" : "Пусто"}</div>`; return; }
-  let html = "", grp = "";
+  const scrYou = tab === "you" && !q ? base.filter((x) => st(x) === "scripts" && sgOf(x) === "you").length : 0;
+  const scrRow = scrYou ? `<div class="group" id="goScr" style="cursor:pointer">📝 Сценарии ждут тебя: ${scrYou} ›</div>` : "";
+  if (!shown.length) { $("#list").innerHTML = scrRow + `<div class="empty">${tab === "you" ? (scrYou ? "Роликов на проверку нет" : "Ничего не ждёт тебя 🎉") : tab === "scripts" && sub === "you" ? "Все сценарии разобраны 🎉" : "Пусто"}</div>`; return; }
+  let html = scrRow, grp = "";
   for (const x of shown) {
     const pd = tab === "plan" ? x.when : tab === "out" ? x.out : "";
     const g = !q && tab === "anim" ? "🎨 " + (ANIM_G[st(x)] || st(x))
@@ -736,9 +752,12 @@ function scoreLines(x) {
   return out ? `<div class="scores-under">${out}</div>` : "";
 }
 
+// 12.11 (Fable 4.2): «Видео ещё делается» stood on 146 reels that were out long ago (their preview is removed 3 days after)
+const noVideo = (x) => x.state === "script" ? "Ещё не записан" : x.state === "done" && x.out ? "Превью убрано через 3 дня после выхода. Ссылки на посты ниже"
+  : x.state === "off" ? "Превью не хранится для «Не выкладываем»" : "Видео ещё делается";
 async function video(x, pid = "player") {
   const p = $("#" + pid);
-  if (!x.video) { p.innerHTML = `<div class="ld">${x.state === "script" ? "Ещё не записан" : "Видео ещё делается"}</div>`; return; }
+  if (!x.video) { p.innerHTML = `<div class="ld">${noVideo(x)}</div>`; return; }
   if (!vids[x.video]) {
     p.innerHTML = `<div class="ld" style="text-align:center">${x.thumb ? `<img src="${x.thumb}" style="width:120px;border-radius:10px;opacity:.5;display:block;margin:0 auto 10px">` : ""}<span id="pct">Загружаю видео…</span></div>`;
     userLoading++;
@@ -890,7 +909,7 @@ function infoHtml(x) {
   const label = pp ? "⏳ " + pp.a + " (принято, Мак берёт в работу)" : x.master === "rendering" ? "Рендерю 1440" : x.state === "queue" && x.queue_pos ? `В очереди · ${x.queue_pos}-й` : lbl(x);
   let h = `<div class="box"><h3>Статус</h3>
     <div class="row"><span class="chip ${pp ? "pend" : x.state === "review" ? "you" : x.state}">${label}</span><span class="chip">${esc(x.status)}</span>${pubChips(x)}</div>
-    ${(x.pubs || []).length ? `<div class="pubs" style="margin-top:8px">${pubLines(x)}</div>` : ""}
+    ${(x.pubs || []).length ? `<div class="pubs" style="margin-top:8px">${pubLines(x)}<div class="mute" style="font-size:12px;margin-top:4px">Время везде по Алматы</div></div>` : ""}
     ${x.step ? `<div class="step" style="margin-top:8px;white-space:normal">⚙️ ${esc(x.step)}</div>` : ""}
     ${(x.log || []).length ? `<details style="margin-top:8px"><summary class="hint">Что происходило (последние шаги)</summary><div class="pack" style="font-size:12px;color:var(--mute);margin-top:6px">${(x.log || []).map(esc).join("\n")}</div></details>` : ""}
     ${(x.acts || []).length ? `<div class="hint" style="margin-top:8px">Твои нажатия: ${(x.acts || []).map((a) => esc(a.t + " " + a.a)).join(" · ")}</div>` : ""}
@@ -904,7 +923,7 @@ function infoHtml(x) {
     h += `<div class="box"><h3>Оценки агентов · <span class="sc total ${clsOf(avg)}" style="font-size:15px">общая ${esc(String(avg))}</span>${x.deep ? ` · 📖 развёрнутый, ${x.words} слов` : ""}</h3><div class="row" style="flex-wrap:wrap;gap:6px">${Object.entries(x.scores).map(([k, v]) => `<span class="chip">${esc(k)} ${sc(Number(v))}</span>`).join("")}</div></div>`;
   }
   h += blockHtml(x);
-  if (x.trial !== undefined && (x.trial || x.trial_hook)) h += `<div class="box"><h3>🧪 Пробная версия (только Instagram)</h3><div class="hint" style="font-size:14px">Хук: ${esc(x.trial_hook || "")}<br>Другие картинки и кадр 0. Выйдет пробным роликом, основная лента её не видит.</div>${(x.trial_notes||[]).length ? `<div class="hint" style="color:#c80">⚠️ Пришла с замечаниями (не прошла проверку после доработки), решай сам:<br>${x.trial_notes.map(esc).join("<br>")}</div>` : ""}${x.trial ? `<div class="hint">Видео пробной версии открыто вверху, под основной.</div>` : `<div class="hint">Видео ещё делается</div>`}</div>`;
+  if (x.trial !== undefined && (x.trial || x.trial_hook)) h += `<div class="box"><h3>🧪 Пробная версия (только Instagram)</h3><div class="hint" style="font-size:14px">Хук: ${esc(x.trial_hook || "")}<br>Другие картинки и кадр 0. Выйдет пробным роликом, основная лента её не видит.</div>${(x.trial_notes||[]).length ? `<div class="hint" style="color:#c80">⚠️ Пришла с замечаниями (не прошла проверку после доработки), решай сам:<br>${x.trial_notes.map(esc).join("<br>")}</div>` : ""}${x.trial ? `<div class="hint">Видео пробной версии открыто вверху, под основной.</div>` : `<div class="hint">${noVideo(x)}</div>`}</div>`;
   if (x.hookdir) h += hookHtml(x.hookdir);
   if (x.audio && (x.state === "review" || x.state === "script")) h += karaokeHtml(x);
   if (x.state === "review") {
@@ -1067,7 +1086,7 @@ function fillDetail(x, withVideo = true) {
     setTimeout(() => (pre[x.video] || Promise.resolve()).then(() => [shown[i + 1], shown[i - 1]].forEach((y) => y && preload(y))), 0);
     // 25.10, Alex: main and trial open one under the other, each with its label on top
     const two = x.state !== "review" && x.trial;
-    $("#detail").innerHTML = (x.state === "review" ? "" : (two ? `<div class="vlab">🎬 Основная версия (лента, все площадки)</div>` : "") + `<div class="player" id="player"></div>
+    $("#detail").innerHTML = (x.state === "review" ? "" : (two ? `<div class="vlab">🎬 Основная версия (лента, все площадки)</div>` : "") + `<div class="player${x.long ? " wide" : ""}" id="player"></div>
       <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="more" id="fs" style="padding:0">⛶ На весь экран</button></div>` + scoreLines(x)
       + (two ? `<div class="vlab" style="margin-top:14px">🧪 Пробная версия (только Instagram)${x.trial_hook ? ` · хук: ${esc(x.trial_hook)}` : ""}</div><div class="player" id="player2"></div>` : "")) + `<div id="info"></div>`;
     if (x.state !== "review") video(x);
@@ -1154,6 +1173,7 @@ function step(d) {
   const i = shown.findIndex((x) => x.id === cur); const n = shown[i + d]; if (n) { cur = n.id; SEEN[n.id] = sig(n); saveSeen(); infoSig = ""; $("#sheet").scrollTop = 0; fillDetail(n); }
 }
 $("#list").onclick = (e) => {
+  if (e.target.closest("#goScr")) { tab = "scripts"; sub = "you"; try { localStorage.setItem("tab", tab); localStorage.setItem("sub", sub); } catch (er) {} render(); window.scrollTo(0, 0); return; }
   if (tab === "cal" && !$("#q").value.trim() && calClick(e)) return;
   const it = e.target.closest(".item"); if (it) openReel(it.dataset.id);
 };
@@ -1178,6 +1198,7 @@ try {  // instant start: the last data saved on the phone, the fresh one follows
 load().then(() => { if (DATA) setTimeout(prefetchAll, 300); const id = qs.get("r") || location.hash.slice(1); if (/^\d{6}-(RU|US)-\d\d$/.test(id)) openReel(id); });
 document.addEventListener("click", (e) => { const s = e.target.closest("summary"); if (s) e.stopPropagation(); });
 setInterval(() => { if (!document.hidden) load(); }, 10000);
+setInterval(() => { if (DATA && FRESH && Object.values(PEND).some((p) => Date.now() - p.t > 20 * 60000)) render(); }, 60000);
 $("#rf").onclick = async () => { $("#rf").textContent = "…"; try { await load(); toast("Обновлено"); } finally { $("#rf").textContent = "⟳"; } };
 let y0 = null;
 document.addEventListener("touchstart", (e) => { y0 = window.scrollY <= 0 && !cur ? e.touches[0].clientY : null; }, { passive: true });
