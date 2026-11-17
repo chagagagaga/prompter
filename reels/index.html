@@ -203,6 +203,26 @@ details[open] > summary h3::after { content: " ⌄"; }
 .cal-hint { color: var(--mute); font-size: 11px; text-align: center; margin-top: 14px; }
 .vlab{font-weight:700;font-size:15px;margin:4px 0 6px}
 .scores-under{margin:6px 2px 4px;font-size:13px;line-height:1.6;color:var(--mute,#888)}.scores-under .ok{color:#2e9e5b}.scores-under .mid{color:#c98a12}.scores-under .bad{color:#d0453b}
+/* 17.11 «💡 Мои идеи» */
+.tab[data-t="ideas"] { background: rgba(255,214,10,.14); border-color: rgba(255,214,10,.45); color: var(--accent); }
+.tab[data-t="ideas"] b { color: #ffe680; }
+.tab[data-t="ideas"].on { background: var(--accent); border-color: var(--accent); color: #000; }
+.tab[data-t="ideas"].on b { color: #000; }
+.idea-form { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.idea-form textarea { min-height: 150px; }
+.segs { display: flex; gap: 8px; }
+.seg { flex: 1; display: flex; background: var(--card2); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.seg button { flex: 1; background: none; border: 0; color: var(--mute); padding: 10px 4px; font-weight: 700; font-size: 14px; }
+.seg button.on { background: var(--text); color: #000; }
+#iLang { flex: 0 0 34%; }
+.seg button { white-space: nowrap; }
+.idea { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 6px; }
+.idea.go { cursor: pointer; }
+.idea .txt { font-size: 14px; color: #d6d6dc; white-space: pre-wrap; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.idea .st { font-size: 13px; color: #5eb0ff; }
+.chip.idea-c { background: rgba(255,214,10,.16); color: var(--accent); }
+.chip.sys-new { background: rgba(52,199,89,.15); color: #5fdb7f; }
+.chip.sys-old { background: rgba(141,141,152,.18); color: #b8b8c2; }
 </style>
 </head>
 <body>
@@ -242,7 +262,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-11-12-ux";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-11-17-ideas";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -252,7 +272,7 @@ let K = qs.get("k") || hs.get("k");
 try { if (K) localStorage.setItem("rk", K); else K = localStorage.getItem("rk"); } catch (e) {}
 const ANIM_G = { you: "Ждут тебя", work: "Собираются / переозвучка / правка", failed: "Не прошли", done: "Ждут публикации", plan: "Запланированы", out: "Опубликованы" };
 const ANIM_O = { you: 0, failed: 1, work: 2, done: 3, plan: 4, out: 5 };
-const TABS = [["scripts", "Сценарии"], ["status", "Статус"], ["you", "Ждут тебя"], ["anim", "🎨 Анимации"], ["work", "В работе"], ["failed", "Не прошли"], ["done", "⏳ Ждут публикации"], ["plan", "🗓 Запланированы"], ["out", "📢 Опубликовано"], ["cal", "📅 Календарь"], ["off", "🚫 Не выкладываем"], ["all", "Все"]];
+const TABS = [["ideas", "💡 Мои идеи"], ["scripts", "Сценарии"], ["status", "Статус"], ["you", "Ждут тебя"], ["anim", "🎨 Анимации"], ["work", "В работе"], ["failed", "Не прошли"], ["done", "⏳ Ждут публикации"], ["plan", "🗓 Запланированы"], ["out", "📢 Опубликовано"], ["cal", "📅 Календарь"], ["off", "🚫 Не выкладываем"], ["all", "Все"]];
 const dm = (t) => t.slice(8, 10) + "." + t.slice(5, 7) + " " + t.slice(11, 16);
 // 19.10: the planned and the real publishing time on every card and list row: «🗓 План 20.10 11:00 · 📢 Выложен 20.10 11:02»
 const lbl = (x) => x.state === "done" && x.pend ? ((x.pubs || []).some((p) => p.st === "out") ? "🗓 Частично вышел" : "🗓 Запланирован") : x.state === "done" && x.out ? "📢 Опубликован" : x.state === "done" && x.when && ["Запланирован", "▶️ К выкладке"].includes(x.status) ? `🗓 Поставлено на выкладку ${dm(x.when)}, выйдет само`
@@ -684,11 +704,12 @@ function render() {
   const cnt = (t) => base.filter((x) => t === "all" ? !(st(x) === "scripts" && ["trash", "reserve"].includes(sgOf(x)))
     : t === "status" ? ["work", "queue"].includes(eff(x)) : t === "scripts" ? st(x) === t && ["you", "edit"].includes(sgOf(x))
     : t === "you" ? st(x) === "you" || (st(x) === "scripts" && sgOf(x) === "you") : st(x) === t).length;
-  $("#tabs").innerHTML = TABS.map(([k, v]) => `<button class="tab ${k === tab ? "on" : ""}" data-t="${k}">${v}<b>${k === "cal" ? calCount() : cnt(k)}</b></button>`).join("");
+  $("#tabs").innerHTML = TABS.map(([k, v]) => `<button class="tab ${k === tab ? "on" : ""}" data-t="${k}">${v}<b>${k === "cal" ? calCount() : k === "ideas" ? (ideaCnt() || "") : cnt(k)}</b></button>`).join("");
   const scr = base.filter((x) => st(x) === "scripts");
   $("#stabs").innerHTML = tab !== "scripts" || q ? "" : SUBS.map(([k, v]) => { const xs = scr.filter((x) => sgOf(x) === k);
     const by = lang ? "" : ["RU", "EN"].map((l) => `<i>${l} ${xs.filter((x) => x.lang === l).length}</i>`).join("");
     return `<button class="tab ${k === sub ? "on" : ""}" data-s="${k}">${v}<b>${xs.length}</b>${by}</button>`; }).join("");
+  if (tab === "ideas") { ideasView(); return; }  // 17.11: his ideas, the form is never rebuilt while he types
   if (tab === "status" && !q) { shown = base.filter((x) => !side(x)); statusView(shown); return; }
   if (tab === "cal" && !q) { calView(); return; }
   shown = base.filter((x) => q || (tab === "all" ? !(st(x) === "scripts" && ["trash", "reserve"].includes(sgOf(x)))
@@ -864,10 +885,12 @@ const BLOCK_EMO = { "охват": "📣", "хайп": "🔥", "экспертн�
 // 30.10: the overall score of a card = the mean of its agents' last scores (the same number in the list and inside)
 const totalOf = (x) => { if (x.total != null && x.total >= 0 && x.total <= 10) return Number(x.total).toFixed(1); const v = Object.values(x.scores || {}).map(Number).filter((n) => !isNaN(n) && n >= 0 && n <= 10); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : null; };
 const clsOf = (v, g = 8) => (+v >= g ? "g" : +v >= 6 ? "y" : "r");
-const blockChip = (x) => (x.anim ? `<span class="chip" style="background:rgba(120,90,255,.22)">🎨 анимация</span>` : "") + (x.block ? `<span class="chip">${BLOCK_EMO[x.block] || ""} ${esc(x.block)}</span>` : "") + (x.adapt ? (x.copy ? `<span class="chip" style="background:rgba(80,180,255,.2)">🔁 копия</span>` : `<span class="chip" style="background:rgba(255,200,0,.18)">♻️ адаптация</span>`) : "");
+const blockChip = (x) => (x.idea ? `<span class="chip idea-c">💡 твоя идея</span>` : "")
+  + (x.sys === "new" ? `<span class="chip sys-new">🆕 новая система</span>` : x.sys === "old" ? `<span class="chip sys-old">📜 старая система (13.11)</span>` : "")
+  + (x.anim ? `<span class="chip" style="background:rgba(120,90,255,.22)">🎨 анимация</span>` : "") + (x.block ? `<span class="chip">${BLOCK_EMO[x.block] || ""} ${esc(x.block)}</span>` : "") + (x.adapt ? (x.copy ? `<span class="chip" style="background:rgba(80,180,255,.2)">🔁 копия</span>` : `<span class="chip" style="background:rgba(255,200,0,.18)">♻️ адаптация</span>`) : "");
 function blockHtml(x) {
   let h = "";
-  if (x.block || x.adapt || x.anim) h += `<div class="box"><h3>Блок воронки</h3><div class="row">${blockChip(x)}</div>`
+  if (x.block || x.adapt || x.anim || x.idea || x.sys) h += `<div class="box"><h3>Блок воронки</h3><div class="row">${blockChip(x)}</div>`
     + (x.adapt ? `<div class="hint" style="margin-top:8px;font-size:14px">${x.copy ? "Копия чужого хита (почти дословный перевод, факты перепроверены)" : "Адаптация чужого хита. Что берём: " + esc(x.adapt.what || "структуру")}<br><a href="${esc(x.adapt.url.replace("instagram.com/p/", "instagram.com/reel/"))}" class="extlink" target="_blank" rel="noopener">▶️ Открыть исходный ролик</a></div>` : "") + `</div>`;
   if (x.story) h += `<div class="box"><h3>🎨 Раскадровка: что будет в ролике</h3><div class="pack">${esc(x.story)}</div></div>`;
   if (x.hooks23) {  // 24.10, Alex: pick 2 of the hooks with ticks; he records both; one goes to the main feed, one to an IG trial
@@ -1157,6 +1180,87 @@ function send(a, id, text) {
   setTimeout(load, 30000);
   setTimeout(() => { if (TG) { TG.openTelegramLink(link); } else location.href = link; }, text ? 900 : 300);
 }
+
+// 17.11, Alex: «💡 Мои идеи». An idea goes as an encrypted issue «app-idea»; the Mac (content-engine/ideas.py) writes the
+// script (rewrite = strong, by the strategy; asis = micro-fixes) and it comes to «Сценарии» → «Ждут тебя» as «💡 твоя идея».
+// The text never gets lost: it stays on the phone (IQ) until it is back in DATA.ideas, resent meanwhile (same uid = once).
+let IQ = []; try { IQ = JSON.parse(localStorage.getItem("ideasq") || "[]"); } catch (e) {}
+const saveIQ = () => { try { localStorage.setItem("ideasq", JSON.stringify(IQ)); } catch (e) {} };
+let IOPT = { lang: "ru", format: "face" }; try { Object.assign(IOPT, JSON.parse(localStorage.getItem("iopt") || "{}")); } catch (e) {}
+const IBUSY = new Set();
+const srvIdeas = () => (DATA && DATA.ideas) || [];
+const ideaCnt = () => { const s = new Set(srvIdeas().map((i) => i.uid));
+  return IQ.filter((q) => !s.has(q.uid)).length + srvIdeas().filter((i) => ["new", "writing", "review", "failed"].includes(i.st)).length; };
+const ideaAt = (t) => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(t || "") ? dm(t) : (t || "");
+function ideasListHtml() {
+  const srv = srvIdeas(), seen = new Set(srv.map((i) => i.uid));
+  const loc = IQ.filter((q) => !seen.has(q.uid)).map((q) => ({ uid: q.uid, at: q.at, text: q.text, mode: q.mode, lang: q.lang, format: q.format, id: "",
+    step: q.ok ? "📨 Ушла на Мак, жду подтверждения (до минуты)" : "⏳ Отправляю" + ((q.tries || 0) > 1 ? ` (попытка ${q.tries}), текст сохранён в телефоне` : "") }));
+  const all = loc.concat(srv);
+  if (!all.length) return `<div class="empty">Идей пока нет. Напиши первую сверху.</div>`;
+  return `<div class="group">Отправленные идеи</div>` + all.map((i) => {
+    const x = i.id && DATA ? DATA.items.find((y) => y.id === i.id) : null;
+    let s = i.step || "";
+    if (i.st === "ready" && x) s = st(x) === "scripts" ? (sgOf(x) === "you" ? "📝 Сценарий готов, смотри во вкладке «Сценарии» → «Ждут тебя»" : "➡️ Сценарий: " + (SUBN[sgOf(x)] || x.status))
+      : "➡️ Дальше обычный путь: " + (lbl(x) || x.status);
+    return `<div class="idea${x ? " go" : ""}"${x ? ` data-iopen="${esc(x.id)}"` : ""}>
+      <div class="row"><span class="chip idea-c">💡 ${i.mode === "asis" ? "как есть" : "переписать"}</span><span class="chip">${esc((i.lang || "ru").toUpperCase())}</span><span class="chip">${i.format === "anim" ? "🎨 анимация" : "🎙 лицо"}</span>${x ? `<span class="num" style="font-size:14px">${esc(nm(x))} ›</span>` : ""}<span class="tg">${esc(ideaAt(i.at))}</span></div>
+      <div class="txt">${esc(i.text)}</div>
+      <div class="st">${esc(s)}</div>
+      ${i.retry ? `<button class="btn" data-iretry="${esc(i.uid)}">🔁 Повторить</button>` : ""}</div>`; }).join("");
+}
+function ideasView() {
+  if (!$("#ideaForm")) {
+    let draft = ""; try { draft = localStorage.getItem("idraft") || ""; } catch (e) {}
+    const seg = (id, k, opts) => `<div class="seg" id="${id}">` + opts.map(([v, t]) => `<button data-v="${v}" class="${IOPT[k] === v ? "on" : ""}">${t}</button>`).join("") + `</div>`;
+    $("#list").innerHTML = `<div class="idea-form" id="ideaForm">
+      <textarea id="ideaTxt" maxlength="15000" placeholder="Твоя идея для ролика: тема, кейс, мысль или готовый текст. Можно надиктовать.">${esc(draft)}</textarea>
+      <div class="segs">${seg("iLang", "lang", [["ru", "RU"], ["en", "EN"]])}${seg("iFmt", "format", [["face", "🎙 лицо"], ["anim", "🎨 анимация"]])}</div>
+      <button class="btn main" data-isend="rewrite">✨ Переписать сильно</button>
+      <button class="btn" data-isend="asis">✍️ Как есть (микроправки)</button>
+      <div class="hint">✨ Fable 5.2 усилит хук и структуру по стратегии, идея остаётся твоей, потом все ревьюеры. ✍️ Только ошибки, ударения, факты и длина. Готовый сценарий придёт в «Сценарии» → «Ждут тебя» с меткой «💡 твоя идея».</div>
+    </div><div id="ideaList"></div>`;
+  }
+  $("#ideaList").innerHTML = ideasListHtml();
+}
+async function sendIdea(q, extra) {
+  if (!extra) { q.tries = (q.tries || 0) + 1; q.sent = Date.now(); saveIQ(); }
+  if (!GHT) throw new Error("no token");
+  const r = await fetch("https://api.github.com/repos/chagagagaga/prompter/issues", { method: "POST",
+    headers: { Authorization: "Bearer " + GHT, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
+    body: JSON.stringify({ title: "app-idea", body: await seal(Object.assign({ a: "idea", uid: q.uid, text: q.text, mode: q.mode, lang: q.lang, format: q.format, t: Date.now() }, extra || {})) }) });
+  if (!r.ok) throw new Error(r.status);
+  if (!extra) { q.ok = true; q.sent = Date.now(); saveIQ(); }
+}
+const ideasRefresh = () => { if (DATA && tab === "ideas" && $("#ideaList")) { $("#ideaList").innerHTML = ideasListHtml(); render(); } };
+function ideaPump() {  // drops what the Mac has (fresh data only), resends the rest: not sent 15 s..5 min, sent but unseen 10 min
+  if (FRESH && DATA) { const seen = new Set(srvIdeas().map((i) => i.uid)), n = IQ.length; IQ = IQ.filter((q) => !seen.has(q.uid)); if (IQ.length !== n) saveIQ(); }
+  for (const q of IQ) {
+    const wait = q.ok ? 10 * 60000 : Math.min(5 * 60000, 15000 * Math.pow(2, Math.max(0, (q.tries || 1) - 1)));
+    if (IBUSY.has(q.uid) || Date.now() - (q.sent || 0) < wait) continue;
+    IBUSY.add(q.uid); sendIdea(q).catch(() => {}).finally(() => { IBUSY.delete(q.uid); ideasRefresh(); });
+  }
+}
+setInterval(ideaPump, 15000);
+document.addEventListener("input", (e) => { if (e.target && e.target.id === "ideaTxt") { try { localStorage.setItem("idraft", e.target.value); } catch (er) {} } });
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest("[data-isend], [data-iretry], [data-iopen], #iLang button, #iFmt button"); if (!b) return;
+  if (b.closest("#iLang") || b.closest("#iFmt")) {
+    IOPT[b.closest("#iLang") ? "lang" : "format"] = b.dataset.v; try { localStorage.setItem("iopt", JSON.stringify(IOPT)); } catch (er) {}
+    b.parentNode.querySelectorAll("button").forEach((y) => y.classList.toggle("on", y === b)); return; }
+  if (b.dataset.isend) {
+    const t = ($("#ideaTxt").value || "").trim(); if (t.length < 5) { toast("Напиши идею: хотя бы пару слов"); return; }
+    const q = { uid: "i" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), text: t, mode: b.dataset.isend, lang: IOPT.lang, format: IOPT.format,
+      at: almNow().replace("T", " "), tries: 0, sent: 0, ok: false };
+    IQ.unshift(q); saveIQ(); $("#ideaTxt").value = ""; try { localStorage.removeItem("idraft"); } catch (er) {}
+    IBUSY.add(q.uid); ideasRefresh();
+    sendIdea(q).then(() => toast("💡 Идея ушла: " + (q.mode === "asis" ? "как есть, микроправки" : "переписываю сильно")))
+      .catch(() => toast("Нет сети: идея сохранена в телефоне, отправлю сама")).finally(() => { IBUSY.delete(q.uid); ideasRefresh(); setTimeout(load, 12000); });
+    return; }
+  if (b.dataset.iretry) { e.stopPropagation(); const i = srvIdeas().find((y) => y.uid === b.dataset.iretry); if (!i) return;
+    sendIdea(i, { retry: true, text: "" }).then(() => toast("🔁 Повторяю идею")).catch(() => toast("Не отправилось, проверь интернет и нажми ещё раз")); return; }
+  if (b.dataset.iopen) openReel(b.dataset.iopen);
+});
 
 function openReel(id) {
   const x = DATA.items.find((i) => i.id === id); if (!x) return;
