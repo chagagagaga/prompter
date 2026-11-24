@@ -102,8 +102,8 @@ textarea { min-height: 110px; }
 .hint { font-size: 12px; color: var(--mute); }
 .toast { position: fixed; left: 16px; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 30; background: #f2f2f4; color: #000;
   border-radius: 14px; padding: 13px 16px; font-weight: 600; transform: translateY(150%); transition: transform .25s, opacity .25s;
-  opacity: 0; visibility: hidden; pointer-events: none; }
-.toast.on { transform: none; opacity: 1; visibility: visible; }
+  opacity: 0; visibility: hidden; pointer-events: none; max-height: 4.6em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.toast.on { transform: none; opacity: 1; visibility: visible; pointer-events: auto; }
 .rf { background: var(--card2); border: 1px solid var(--line); color: var(--text); border-radius: 10px; width: 34px; height: 30px; font-size: 16px; }
 .ptr { height: 0; overflow: hidden; text-align: center; color: var(--mute); font-size: 13px; transition: height .2s; }
 .kw { cursor: pointer; border-radius: 4px; padding: 0 1px; }
@@ -262,7 +262,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-11-18-modes";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-11-24-toast";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -408,7 +408,7 @@ const nm = (x) => x.num || (x.state === "review" ? `Сценарий ${x.lang} $
 const day = (x) => x.id.slice(4, 6) + "." + x.id.slice(2, 4);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const pack = (s) => esc(s).replace(/&lt;b&gt;/g, "<b>").replace(/&lt;\/b&gt;/g, "</b>").replace(/&lt;i&gt;/g, "<i>").replace(/&lt;\/i&gt;/g, "</i>");
-const toast = (t) => { const e = $("#toast"); e.textContent = t; e.classList.add("on"); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove("on"), 3200); };
+const toast = (t) => { const e = $("#toast"); e.textContent = t; e.onclick = () => e.classList.remove("on"); e.classList.add("on"); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove("on"), 3200); };
 // 18.10, Alex: «нажал рендер 4К, а он остался жить в "Ждут тебя"»: a reel he already acted on moves to «В работе» at once
 // 18.10, Alex: «нажал Не выкладываем, а карточка не перемещается, сделай моментально»: the card moves at once
 const eff = (x) => { const p = pendOf(x); if (!p) return x.state;
@@ -473,7 +473,11 @@ async function load() {
     DATA.items.forEach((x) => { if (SEEN[x.id] === undefined) SEEN[x.id] = ""; });
     if (prev) {
       const fresh = DATA.items.filter((x) => { const o = prev.items.find((i) => i.id === x.id); return isNew(x) && (!o || sig(o) !== sig(x)); });
-      if (fresh.length) toast("🆕 " + fresh.map((x) => `${nm(x)}: ${String(lbl(x) || LABEL[x.state] || "").toLowerCase()}`).join(", "));
+      // 24.11, Alex: «огромная плашка белая высвечивается… неудобно капец»: 1-2 changes = their names, more = ONE short line of counts
+      if (fresh.length) { const lb = (x) => String(lbl(x) || LABEL[x.state] || "").toLowerCase();
+        if (fresh.length <= 2) toast("🆕 " + fresh.map((x) => `${nm(x)}: ${lb(x)}`).join(", "));
+        else { const g = {}; fresh.forEach((x) => { const k = lb(x) || "обновлено"; g[k] = (g[k] || 0) + 1; });
+          toast(`🆕 Обновилось ${fresh.length}: ` + Object.entries(g).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => `${k} ${n}`).join(", ")); } }
     }
     render();
     if (cur) { const x = DATA.items.find((i) => i.id === cur), o = prev && prev.items.find((i) => i.id === cur);
