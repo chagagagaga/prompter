@@ -268,7 +268,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-11-24-rate1";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-11-25-raw1";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -331,8 +331,17 @@ async function viaPages(path, fresh) {
   return r.arrayBuffer();
 }
 // 05.11: the data first from the branch «appdata» (pushed within seconds of every change, no Pages build), then main, then Pages
+// 25.11: the first open on a new device has no token, and GitHub gives 60 API reads an hour per home IP (used up = 403):
+// then the raw copy of the branch «appdata» (no API limit, at most ~5 min behind), before main and the Pages copy
+const RAW = "https://raw.githubusercontent.com/chagagagaga/prompter/";
+async function viaRaw(path, ref) {
+  const r = await fetch(RAW + ref + "/reels/" + path + "?t=" + Date.now(), { cache: "no-store" });
+  if (!r.ok) throw new Error(r.status);
+  return r.arrayBuffer();
+}
 async function getAny(path) {
   try { return await viaApi(path, "appdata"); } catch (e) {}
+  try { return await viaRaw(path, "appdata"); } catch (e) {}
   try { return await viaApi(path, "main"); } catch (e) {}
   return viaPages(path, true);
 }
