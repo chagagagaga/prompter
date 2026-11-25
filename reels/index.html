@@ -268,7 +268,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-11-24-rate1";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-11-25-cache1";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -300,11 +300,16 @@ const sig = (x) => x.state + "|" + x.status + "|" + (x.video || "");
 // ft / fz (texts only) and vn / ve (wait for his voice) never change the card, so they just expire
 const LOST_SKIP = { ft: 1, fz: 1, vn: 1, ve: 1, rn: 1 };
 let FRESH = false;
+// 25.11, Alex («нажал одобряю 2-3 раза, а они возвращаются в «Ждут меня», бесит»): GitHub was slow, the app kept data OLDER
+// than his press, and the 20-min timer dropped the press, so the card fell back. Now a press stays until the card changes;
+// it is called lost only by data the Mac made at least 5 min AFTER the press (ts) that still shows the card unchanged.
 const pendOf = (x) => { const p = PEND[x.id]; if (!p) return null;
-  if (p.sig !== sig(x) || Date.now() - p.t > 20 * 60000) {
-    if (p.sig === sig(x) && !FRESH) return p;  // the cached copy at start: wait for the fresh data before deciding
-    if (p.sig === sig(x) && !LOST_SKIP[p.c]) setTimeout(() => toast(`⚠️ ${nm(x)}: «${p.a}» не сработало за 20 мин. Нажми ещё раз или напиши боту /you`), 0);
-    delete PEND[x.id]; savePend(); return null; } return p; };
+  if (p.sig !== sig(x)) { delete PEND[x.id]; savePend(); return null; }  // the card changed: the Mac has it
+  if (LOST_SKIP[p.c]) { if (Date.now() - p.t > 20 * 60000) { delete PEND[x.id]; savePend(); return null; } return p; }
+  const dataT = ((DATA && DATA.ts) || 0) * 1000;
+  if (!FRESH || dataT < p.t + 5 * 60000) return p;  // no data newer than the press yet: keep showing his decision
+  setTimeout(() => toast(`⚠️ ${nm(x)}: «${p.a}» не сработало. Нажми ещё раз или напиши боту /you`), 0);
+  delete PEND[x.id]; savePend(); return null; };
 const isNew = (x) => SEEN[x.id] !== undefined && SEEN[x.id] !== sig(x) && ["you", "failed", "done", "review"].includes(x.state)
   && !["trash", "reserve"].includes(x.sg);
 const vids = {};
@@ -331,10 +336,41 @@ async function viaPages(path, fresh) {
   return r.arrayBuffer();
 }
 // 05.11: the data first from the branch «appdata» (pushed within seconds of every change, no Pages build), then main, then Pages
+// 25.11: the first open on a new device has no token, and GitHub gives 60 API reads an hour per home IP (used up = 403):
+// then the raw copy of the branch «appdata» (no API limit, at most ~5 min behind), before main and the Pages copy
+const RAW = "https://raw.githubusercontent.com/chagagagaga/prompter/";
+async function viaRaw(path, ref) {
+  const r = await fetch(RAW + ref + "/reels/" + path + "?t=" + Date.now(), { cache: "no-store" });
+  if (!r.ok) throw new Error(r.status);
+  return r.arrayBuffer();
+}
 async function getAny(path) {
-  try { return await viaApi(path, "appdata"); } catch (e) {}
-  try { return await viaApi(path, "main"); } catch (e) {}
-  return viaPages(path, true);
+  // 25.11, Alex («пишет загружаю… почини, устал от этого бага»): GitHub served ~55 KB/s and a stalled fetch had no end,
+  // so «Загружаю…» stayed forever (LOADING blocked every later try). Each source now gives up after 2 min.
+  const h = { Accept: "application/vnd.github.raw" }; if (GHT) h.Authorization = "Bearer " + GHT;
+  const T = 120000;
+  try { return await grab(API + path + "?ref=appdata", { headers: h, cache: "no-cache" }, T); } catch (e) {}
+  try { return await grab(RAW + "appdata/reels/" + path + "?t=" + Date.now(), { cache: "no-store" }, T); } catch (e) {}
+  try { return await grab(API + path + "?ref=main", { headers: h, cache: "no-cache" }, T); } catch (e) {}
+  return grab(path + "?t=" + Date.now(), { cache: "no-store" }, T);
+}
+async function grab(url, opts, ms) {
+  const ac = new AbortController(); const t = setTimeout(() => ac.abort(), ms);
+  try { const r = await fetch(url, Object.assign({}, opts, { signal: ac.signal })); if (!r.ok) throw new Error(r.status); return await r.arrayBuffer(); }
+  finally { clearTimeout(t); }
+}
+// 25.11: the last data lives in the Cache API: localStorage holds ~5 MB and the data outgrew it on 01.11, so every save
+// failed silently and each start showed the copy of 01.11. A failed save now also drops the old copy.
+const DC = "reels-data-v1";
+async function cacheRead() {
+  try { const c = await caches.open(DC); const r = await c.match("dcache"); if (r) return await r.text(); } catch (e) {}
+  try { return localStorage.getItem("dcache"); } catch (e) { return null; }
+}
+async function cacheWrite(d) {
+  const s = JSON.stringify(d);
+  try { const c = await caches.open(DC); await c.put("dcache", new Response(s, { headers: { "Content-Type": "application/json" } }));
+    try { localStorage.removeItem("dcache"); } catch (e) {} return; } catch (e) {}
+  try { localStorage.setItem("dcache", s); } catch (e) { try { localStorage.removeItem("dcache"); } catch (e2) {} }
 }
 async function getData() { return getAny("data.bin"); }
 // 17.10: the compressed copy (~3x smaller); the plain data.bin stays for old cached copies of this page
@@ -469,7 +505,7 @@ async function load() {
     if (prev && FRESH && (fresh.ts === prev.ts || (fresh.h && fresh.h === prev.h)) && fresh.app === prev.app) {
       prev.ts = fresh.ts; prev.updated = fresh.updated; updLine(); return; }
     DATA = fresh; FRESH = true;
-    try { localStorage.setItem("dcache", JSON.stringify(DATA)); } catch (e) {}  // the next start shows this at once
+    cacheWrite(DATA);  // the next start shows this at once (25.11: Cache API, see cacheRead)
     updLine();
     if (DATA.app && DATA.app !== APP_VER && !sessionStorage.getItem("rl" + DATA.app)) {
       sessionStorage.setItem("rl" + DATA.app, "1"); location.replace(location.pathname + "?v=" + Date.now() + (qs.get("k") ? "&k=" + K : "") + (location.hash || "")); return;
@@ -1223,6 +1259,9 @@ async function sendInApp(a, id, text) {  // an encrypted GitHub issue in the Pag
   if (!r.ok) throw new Error(r.status);
 }
 function send(a, id, text) {
+  // 25.11, Alex: a press on the old copy (cards he had already decided) is never sent: the fresh data comes first
+  if (DATA && !FRESH) { const s = staleMin(DATA.updated);
+    if (s === null || s >= 30) { toast("⏳ Секунду: гружу свежие данные, на экране старая копия. Нажми, когда сверху будет «обновлено»"); load(); return; } }
   const notes = { r4: "🎬 Принято", notes: "✏️ Замечания ушли", fr: "🔧 Правлю мелочи", ft: "🔧 Правлю мелочи", fb: "🔧 Правлю мелочи", fbx: "🔧 Правлю мелочи", sw: "🔄 Меняю местами", sm: "🎨 Меняю анимацию", st: "🎨 Меняю анимацию",
     pp: "✅ Ставлю на выкладку", pt: "🕒 Ставлю на время", pe: "✏️ Снимаю и переделываю", pc: "🚫 В «Не выкладываем»", fx: "🔧 Дорабатываю",
     ap: "✅ Беру", ed: "✏️ Правлю сценарий", vn: "🎙 Запиши голосовое в чате с ботом", ve: "🎙 Запиши голосовое в чате с ботом", rw: "❌ Переписываю", tr: "🗑 В мусор", fs: "🔧 Правлю отмеченные", un: "↩️ Возвращаю" };
@@ -1361,11 +1400,13 @@ $("#back").onclick = () => closeReel();
 $("#prev").onclick = () => step(-1); $("#next").onclick = () => step(1);
 if (TG) { TG.BackButton.onClick(() => closeReel()); }
 setInterval(() => { if (TG) cur ? TG.BackButton.show() : TG.BackButton.hide(); }, 400);
-try {  // instant start: the last data saved on the phone, the fresh one follows in a second or two
-  const c = localStorage.getItem("dcache");
-  if (c && K) { DATA = JSON.parse(c); GHT = DATA.gh || ""; $("#upd").innerHTML = "⏳ загружаю, в кэше от " + DATA.updated + " (Алматы)"; render(); }
-} catch (e) {}
-load().then(() => { if (DATA) setTimeout(prefetchAll, 300); const id = qs.get("r") || location.hash.slice(1); if (/^\d{6}-(RU|US)-\d\d$/.test(id)) openReel(id); });
+(async () => {  // instant start: the last data saved on the phone, the fresh one follows
+  try { const c = await cacheRead();
+    if (c && K && !DATA) { DATA = JSON.parse(c); GHT = DATA.gh || "";
+      $("#upd").innerHTML = "⏳ загружаю свежие данные · на экране копия от " + DATA.updated + " (Алматы), кнопки ждут"; render(); }
+  } catch (e) {}
+  await load();
+})().then(() => { if (DATA) setTimeout(prefetchAll, 300); const id = qs.get("r") || location.hash.slice(1); if (/^\d{6}-(RU|US)-\d\d$/.test(id)) openReel(id); });
 document.addEventListener("click", (e) => { const s = e.target.closest("summary"); if (s) e.stopPropagation(); });
 setInterval(() => { if (!document.hidden) load(); }, 10000);
 setInterval(() => { if (DATA && FRESH && Object.values(PEND).some((p) => Date.now() - p.t > 20 * 60000)) render(); }, 60000);
