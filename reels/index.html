@@ -268,7 +268,7 @@ details[open] > summary h3::after { content: " ⌄"; }
 })();
 </script>
 <script>
-const APP_VER = "2026-11-25-pend1";  // bump on every change: an old copy cached by Telegram reloads itself
+const APP_VER = "2026-11-24-rate1";  // bump on every change: an old copy cached by Telegram reloads itself
 const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.platform && Telegram.WebApp.platform !== "unknown" ? Telegram.WebApp : null;
 // keyboard button launch: no initData, sendData works; inline / menu launch: initData set, sendData doesn't
 const KB = TG && !TG.initData;
@@ -300,16 +300,11 @@ const sig = (x) => x.state + "|" + x.status + "|" + (x.video || "");
 // ft / fz (texts only) and vn / ve (wait for his voice) never change the card, so they just expire
 const LOST_SKIP = { ft: 1, fz: 1, vn: 1, ve: 1, rn: 1 };
 let FRESH = false;
-// 25.11, Alex («нажал одобряю 2-3 раза, а они возвращаются в «Ждут меня», бесит»): GitHub was slow, the app kept data OLDER
-// than his press, and the 20-min timer dropped the press, so the card fell back. Now a press stays until the card changes;
-// it is called lost only by data the Mac made at least 5 min AFTER the press (ts) that still shows the card unchanged.
 const pendOf = (x) => { const p = PEND[x.id]; if (!p) return null;
-  if (p.sig !== sig(x)) { delete PEND[x.id]; savePend(); return null; }  // the card changed: the Mac has it
-  if (LOST_SKIP[p.c]) { if (Date.now() - p.t > 20 * 60000) { delete PEND[x.id]; savePend(); return null; } return p; }
-  const dataT = ((DATA && DATA.ts) || 0) * 1000;
-  if (!FRESH || dataT < p.t + 5 * 60000) return p;  // no data newer than the press yet: keep showing his decision
-  setTimeout(() => toast(`⚠️ ${nm(x)}: «${p.a}» не сработало. Нажми ещё раз или напиши боту /you`), 0);
-  delete PEND[x.id]; savePend(); return null; };
+  if (p.sig !== sig(x) || Date.now() - p.t > 20 * 60000) {
+    if (p.sig === sig(x) && !FRESH) return p;  // the cached copy at start: wait for the fresh data before deciding
+    if (p.sig === sig(x) && !LOST_SKIP[p.c]) setTimeout(() => toast(`⚠️ ${nm(x)}: «${p.a}» не сработало за 20 мин. Нажми ещё раз или напиши боту /you`), 0);
+    delete PEND[x.id]; savePend(); return null; } return p; };
 const isNew = (x) => SEEN[x.id] !== undefined && SEEN[x.id] !== sig(x) && ["you", "failed", "done", "review"].includes(x.state)
   && !["trash", "reserve"].includes(x.sg);
 const vids = {};
@@ -336,17 +331,8 @@ async function viaPages(path, fresh) {
   return r.arrayBuffer();
 }
 // 05.11: the data first from the branch «appdata» (pushed within seconds of every change, no Pages build), then main, then Pages
-// 25.11: the first open on a new device has no token, and GitHub gives 60 API reads an hour per home IP (used up = 403):
-// then the raw copy of the branch «appdata» (no API limit, at most ~5 min behind), before main and the Pages copy
-const RAW = "https://raw.githubusercontent.com/chagagagaga/prompter/";
-async function viaRaw(path, ref) {
-  const r = await fetch(RAW + ref + "/reels/" + path + "?t=" + Date.now(), { cache: "no-store" });
-  if (!r.ok) throw new Error(r.status);
-  return r.arrayBuffer();
-}
 async function getAny(path) {
   try { return await viaApi(path, "appdata"); } catch (e) {}
-  try { return await viaRaw(path, "appdata"); } catch (e) {}
   try { return await viaApi(path, "main"); } catch (e) {}
   return viaPages(path, true);
 }
