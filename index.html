@@ -56,14 +56,16 @@ button.on { background:var(--acc); color:#000; }
 #modes button small { display:block; font-size:12px; opacity:.75; }
 #cam { position:fixed; inset:0; background:#000; display:none; z-index:7; overflow:hidden; color:#fff; touch-action:manipulation; }
 #cv { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
-#fband { position:absolute; left:0; right:0; top:0; overflow:hidden; background:rgba(0,0,0,.52);
+#fband { position:absolute; left:0; right:0; top:0; overflow:hidden; touch-action:none; background:rgba(0,0,0,.52);
   -webkit-mask-image:linear-gradient(transparent 0, #000 9%, #000 84%, transparent 100%); mask-image:linear-gradient(transparent 0, #000 9%, #000 84%, transparent 100%); }
 #froll { position:absolute; left:0; right:0; top:0; padding:0 7%; will-change:transform; }
 #froll .tag { color:rgba(255,255,255,.6); font-size:.45em; margin-bottom:.5em; }
 #froll .txt { white-space:pre-wrap; line-height:1.32; font-weight:700; text-shadow:0 1px 3px rgba(0,0,0,.85); }
 #froll .end { color:rgba(255,255,255,.55); font-size:.5em; padding:1em 0 60vh; }
 #fmark { position:absolute; left:2px; width:0; height:0; border-top:9px solid transparent; border-bottom:9px solid transparent; border-left:12px solid var(--acc); pointer-events:none; }
-#fcount { position:absolute; inset:0; display:none; align-items:center; justify-content:center; font-size:42vw; font-weight:800; color:#fff; text-shadow:0 4px 30px rgba(0,0,0,.6); pointer-events:none; }
+#fmic { position:absolute; right:12px; bottom:calc(env(safe-area-inset-bottom) + 104px); width:12px; height:70px; background:rgba(0,0,0,.5); border-radius:6px; overflow:hidden; }
+#fmic i { position:absolute; left:0; right:0; bottom:0; height:0; background:#34c759; transition:height .08s linear; }
+#fmic.off { background:#ff3b30; }
 #frec { position:absolute; left:50%; transform:translateX(-50%); bottom:calc(env(safe-area-inset-bottom) + 104px); background:rgba(255,59,48,.92); color:#fff; padding:6px 14px; border-radius:20px; font-weight:700; font-size:17px; display:none; font-variant-numeric:tabular-nums; }
 .frecording #frec { display:block; }
 #fres { position:absolute; left:12px; bottom:calc(env(safe-area-inset-bottom) + 104px); background:rgba(0,0,0,.5); padding:4px 10px; border-radius:10px; font-size:13px; }
@@ -73,11 +75,17 @@ button.on { background:var(--acc); color:#000; }
 #fbar button { background:rgba(255,255,255,.2); color:#fff; padding:11px 0; flex:1 1 0; min-width:0; font-size:16px; border-radius:10px; white-space:nowrap; }
 #fbar #f-rec { flex:none; width:76px; height:76px; border-radius:38px; background:#ff3b30; border:4px solid #fff; font-size:26px; padding:0; }
 .frecording #fbar button:not(#f-rec) { visibility:hidden; }
+#fbar #f-pause { display:none; flex:none; width:62px; height:62px; border-radius:31px; background:rgba(255,255,255,.22); border:3px solid #fff; font-size:22px; padding:0; }
+.frecording #fbar button#f-pause { display:block; visibility:visible; }
+.fpaused #fbar button#f-slow, .fpaused #fbar button#f-fast, .fpaused #fbar button#f-small, .fpaused #fbar button#f-big { visibility:visible; }
+.fpaused #frec { background:rgba(100,100,108,.94); }
 .frecording #fbar { background:none; }
 #fmsg { position:absolute; left:8%; right:8%; top:42%; transform:translateY(-50%); text-align:center; font-size:17px; line-height:1.45; display:none; background:rgba(0,0,0,.7); padding:18px; border-radius:14px; }
 #fmsg button { margin-top:12px; background:var(--acc); color:#000; font-weight:700; }
 #fdone { position:absolute; inset:0; background:#000; display:none; flex-direction:column; z-index:3; }
 #fpv { flex:1; width:100%; min-height:0; object-fit:contain; background:#000; }
+#fdone .top { padding:calc(env(safe-area-inset-top) + 8px) max(10px, env(safe-area-inset-left)) 6px; }
+#fdone .top button { background:rgba(255,255,255,.18); color:#fff; padding:10px 16px; font-size:16px; }
 #fdone .info { text-align:center; font-size:13px; color:rgba(255,255,255,.7); padding:8px 12px 0; }
 #fdone .row { display:flex; gap:8px; padding:10px max(10px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 12px) max(10px, env(safe-area-inset-left)); }
 #fdone .row button { flex:1; padding:14px 6px; font-size:16px; background:rgba(255,255,255,.18); color:#fff; }
@@ -123,16 +131,16 @@ button.on { background:var(--acc); color:#000; }
 <div id="cam">
   <video id="cv" playsinline muted autoplay></video>
   <div id="fband"><div id="froll"></div><div id="fmark"></div></div>
-  <div id="fcount"></div>
+  <div id="fmic"><i></i></div>
   <div id="fmsg"><div class="t"></div><button id="f-retry">↻ Включить камеру</button></div>
   <div id="fres"></div>
   <div id="frec">● 0:00</div>
   <div id="fbar">
     <button id="f-back">←</button><button id="f-slow">🐢</button><button id="f-fast">🐇</button>
-    <button id="f-rec">⏺</button>
+    <button id="f-pause">⏸</button><button id="f-rec">⏺</button>
     <button id="f-small">A−</button><button id="f-big">A+</button><button id="f-band">▭</button><button id="f-q">4K</button>
   </div>
-  <div id="fdone"><video id="fpv" playsinline controls></video><div class="info"></div>
+  <div id="fdone"><div class="top"><button id="f-list">← К сценариям</button></div><video id="fpv" playsinline controls></video><div class="info"></div>
     <div class="row"><button class="again" id="f-again">↻ Переснять</button><button class="save" id="f-save">💾 Сохранить</button><button id="f-next">✓ Дальше</button></div></div>
 </div>
 <div id="hud"></div>
@@ -142,7 +150,7 @@ button.on { background:var(--acc); color:#000; }
 <script>
 (() => {
 const $ = s => document.querySelector(s);
-const VERSION = "28.11-front1";
+const VERSION = "28.11-front2";
 // always the newest page (Alex 16.10: the iPhone kept an old copy): compare with the published file, reload if it differs
 fetch("index.html?t=" + Date.now(), { cache: "no-store" }).then(r => r.text()).then(t => {
   const m = t.match(/const VERSION = "([^"]+)"/);
@@ -189,9 +197,10 @@ async function load(force) {
 }
 
 function visible() {
-  // newest batch first, inside a batch RU then US by number; recorded ones stay in place and turn green
+  // 28.11 Alex: «порядок такой же, как в приложении» — the app's own sort (b.id.localeCompare(a.id): the newest batch first,
+  // inside it the highest number first), so a script sits in the same place in both; recorded ones stay and turn green
   return items.filter(i => (S.filter === "all" || i.lang === S.filter) && (S.day === "all" || i.id.startsWith(S.day)))
-    .slice().sort((a, b) => a.id.slice(0, 6) === b.id.slice(0, 6) ? (a.id < b.id ? -1 : 1) : (a.id < b.id ? 1 : -1));
+    .slice().sort((a, b) => b.id.localeCompare(a.id));
 }
 
 function batchName(id) { return "Батч " + id.slice(4, 6) + "." + id.slice(2, 4); }
@@ -318,7 +327,7 @@ document.addEventListener("keydown", e => {
   }
   if (inFront()) {
     const fm = { Space: frecToggle, Enter: frecToggle, MediaPlayPause: frecToggle, k: frecToggle, PageDown: frecToggle, ArrowRight: frecToggle,
-      PageUp: () => fnudge(-90), ArrowLeft: () => fnudge(-90), ArrowDown: () => fspeedD(5), ArrowUp: () => fspeedD(-5), Escape: () => $("#f-back").click() };
+      PageUp: fback, ArrowLeft: fback, p: () => fpause(), ArrowDown: () => fspeedD(5), ArrowUp: () => fspeedD(-5), Escape: () => $("#f-back").click() };
     if (fm[k]) { e.preventDefault(); fm[k](); }
     return;
   }
@@ -378,7 +387,7 @@ function report() {
 }
 function remote(cmd) {
   if (inFront()) {
-    ({ toggle: frecToggle, back: () => fnudge(-90), top: () => { if (!busyRec()) { fpos = 0; fdraw(); } }, up: () => fnudge(-70), down: () => fnudge(70),
+    ({ toggle: frecToggle, back: fback, pause: () => fpause(), top: () => { if (!busyRec()) { fpos = 0; fdraw(); } }, up: () => fnudge(-70), down: () => fnudge(70),
        faster: () => fspeedD(5), slower: () => fspeedD(-5), bigger: () => ffontD(2), smaller: () => ffontD(-2), done: fnext, check: fnext,
        list: () => $("#f-back").click(), next: fnext }[cmd] || (() => {}))();
     return;
@@ -497,13 +506,19 @@ $("#reload").onclick = freshReload;
 // качество камеры не съедалось, а было максимальное»). The page records the front camera itself (getUserMedia +
 // MediaRecorder): the biggest size the phone gives (4K when it can, else 1080p), 30 fps, H.264 MP4 at the iPhone camera's
 // own bitrate, the voice without echo / noise / gain processing. The text runs at the top, right under the lens, so the
-// eyes stay near the camera. ⏺ = 3-2-1, the recording and the text start together; ⏹ = the take, 💾 = save to Photos.
+// eyes stay near the camera. ⏺ = the recording and the text start at once (no 3-2-1, Alex 28.11); ⏸ / ▶︎ = pause and go on
+// in the SAME file (MediaRecorder.pause, nothing recorded before is lost); ⏹ = the take, 💾 = save to Photos. After ⏹ the
+// camera and the mic are released: while the mic is open iOS plays sound through the earpiece («как звонок», Alex 28.11).
+// The green bar on the right = the mic level (it must move when he speaks); the badge names the mic in use.
 S.mode = store.get("mode", "tp"); S.ffont = store.get("ffont", 30); S.fspeed = store.get("fspeed", 42);
 S.fband = store.get("fband", 0); S.fq = store.get("fq", "max");
 const BANDS = [0.36, 0.55, 0.8];
-let fcur = -1, fpos = 0, flast = 0, fraf = 0, fscroll = false, stream = null, rec = null, chunks = [], recT0 = 0, recTimer = 0, take = null, fcounting = false;
+let fcur = -1, fpos = 0, flast = 0, fraf = 0, fscroll = false, stream = null, rec = null, chunks = [], recT0 = 0, recAcc = 0, recTimer = 0, take = null;
+let fdragY = null, fdragP = 0, fdragged = false;
+const mic = { ctx: null, an: null, buf: null, raf: 0, lvl: 0, takePeak: 0, ok: false };
 function inFront() { return $("#cam").style.display === "block"; }
-function busyRec() { return fcounting || !!(rec && rec.state === "recording"); }
+function busyRec() { return !!(rec && rec.state !== "inactive"); }
+function fpausedNow() { return !!(rec && rec.state === "paused"); }
 const LINE = 0.22;  // the reading line: 22 % down the text band (close to the lens)
 function fdraw() { $("#froll").style.transform = "translateY(" + (-fpos + $("#fband").clientHeight * LINE) + "px)"; }
 function fmax() { return Math.max(0, $("#froll").scrollHeight - $("#fband").clientHeight * 0.3); }
@@ -531,7 +546,11 @@ function fres() {
   const s = stream ? stream.getVideoTracks()[0].getSettings() : {};
   const sh = Math.min(s.width || 0, s.height || 0);
   const q = sh >= 2000 ? "4K" : sh >= 1000 ? "1080p" : sh ? sh + "p" : "";
-  $("#fres").textContent = q ? q + (s.frameRate ? " · " + Math.round(s.frameRate) + " к/с" : "") : "";
+  const a = stream ? stream.getAudioTracks()[0] : null, al = a ? (a.label || "микрофон") : "";
+  const mt = !stream ? "" : !a || a.readyState === "ended" ? " · 🎤 НЕТ МИКРОФОНА" :
+    " · 🎤 " + al.slice(0, 26) + (/airpods|bluetooth|beats|buds|hands|headset|гарнитур|наушник/i.test(al) ? " ⚠️ наушники: звук хуже" : "");
+  $("#fres").textContent = (q ? q + (s.frameRate ? " · " + Math.round(s.frameRate) + " к/с" : "") : "") + mt;
+  $("#fmic").classList.toggle("off", !!stream && (!a || a.readyState === "ended"));
   $("#f-q").textContent = S.fq === "max" ? "4K" : "1080";
 }
 async function camStart() {
@@ -539,6 +558,7 @@ async function camStart() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
     fmsg("Здесь камера не включается. Открой суфлёр в Safari (в Telegram снимать нельзя)."); return false;
   }
+  try { if (navigator.audioSession) navigator.audioSession.type = "auto"; } catch (e) {}
   const big = S.fq === "max";
   const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 };
   const vid = (w, h) => ({ facingMode: "user", frameRate: { ideal: 30 }, width: { ideal: w }, height: { ideal: h } });
@@ -559,10 +579,42 @@ async function camStart() {
   }
   fmsg("");
   const v = $("#cv"); v.srcObject = stream; v.muted = true; try { await v.play(); } catch (e) {}
-  fres();
+  const at = stream.getAudioTracks()[0];
+  if (at) { at.onended = () => { fres(); hud("🎤 Микрофон отключился"); }; at.onmute = () => hud("🎤 Микрофон занят другим приложением"); at.onunmute = () => fres(); }
+  micStart(); fres();
   return true;
 }
-function camStop() { if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; $("#cv").srcObject = null; }
+function camStop() { micStop(); if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; $("#cv").srcObject = null; }
+function micStart() {  // the level of the mic track itself (what goes into the file): the bar must move when he speaks
+  micStop();
+  const tr = stream && stream.getAudioTracks()[0];
+  if (!tr) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    mic.ctx = new AC(); mic.an = mic.ctx.createAnalyser(); mic.an.fftSize = 1024;
+    mic.ctx.createMediaStreamSource(new MediaStream([tr])).connect(mic.an);  // not to the speakers: no echo
+    mic.buf = new Uint8Array(mic.an.fftSize);
+    if (mic.ctx.state === "suspended") mic.ctx.resume().catch(() => {});
+    const loop = () => {
+      if (!mic.an) return;
+      mic.an.getByteTimeDomainData(mic.buf);
+      let sq = 0; for (let i = 0; i < mic.buf.length; i++) { const x = (mic.buf[i] - 128) / 128; sq += x * x; }
+      const rms = Math.sqrt(sq / mic.buf.length);
+      mic.lvl = Math.max(rms, mic.lvl * 0.85);
+      if (rms > 0.004) mic.ok = true;
+      if (rec && rec.state === "recording") mic.takePeak = Math.max(mic.takePeak, rms);
+      $("#fmic i").style.height = Math.min(100, Math.round(Math.sqrt(mic.lvl) * 260)) + "%";
+      mic.raf = requestAnimationFrame(loop);
+    };
+    mic.raf = requestAnimationFrame(loop);
+  } catch (e) { mic.ctx = null; mic.an = null; }
+}
+function micWake() { try { if (mic.ctx && mic.ctx.state === "suspended") mic.ctx.resume(); } catch (e) {} }
+function micStop() {
+  cancelAnimationFrame(mic.raf); mic.an = null;
+  if (mic.ctx) { try { mic.ctx.close(); } catch (e) {} }
+  mic.ctx = null; $("#fmic i").style.height = "0";
+}
 function pickType() {
   const L = ['video/mp4;codecs="avc1.640028,mp4a.40.2"', "video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm"];
   return L.find(t => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } }) || "";
@@ -571,33 +623,52 @@ function bitrate() {  // the iPhone camera's own H.264 bitrates: 4K30 ~45, 1080p
   const s = stream.getVideoTracks()[0].getSettings(), px = (s.width || 1920) * (s.height || 1080);
   return px >= 3840 * 2160 * 0.8 ? 40e6 : px >= 1920 * 1080 * 0.8 ? 16e6 : 8e6;
 }
-async function frecToggle() {
-  if (rec && rec.state === "recording") { frecStop(); return; }
-  if (fcounting) { fcounting = false; return; }  // a second tap during 3-2-1 cancels it
-  if ($("#fdone").style.display === "flex") return;
+function fclock() {
+  const ms = recAcc + (rec && rec.state === "recording" ? Date.now() - recT0 : 0), t = Math.floor(ms / 1000);
+  $("#frec").textContent = (fpausedNow() ? "⏸ " : "● ") + Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0") + (fpausedNow() ? " пауза" : "");
+}
+function frecToggle() {  // keyboard / remote / gamepad: start, stop; on pause it goes on (a stop from pause = the ⏹ button)
+  if (fpausedNow()) { fpause(); return; }
+  if (busyRec()) { frecStop(); return; }
+  frecStart();
+}
+async function frecStart() {
+  if (busyRec() || $("#fdone").style.display === "flex") return;
   if (!(await camStart())) return;
-  fcounting = true; fplay(false); fpos = 0; fdraw();
-  const c = $("#fcount"); c.style.display = "flex";
-  for (let n = 3; n > 0; n--) {
-    c.textContent = n; await new Promise(r => setTimeout(r, 850));
-    if (!fcounting) { c.style.display = "none"; hud("Отменил"); return; }
-  }
-  c.style.display = "none"; fcounting = false;
+  micWake();
+  fplay(false); fpos = 0; fdraw();
   const type = pickType(); chunks = [];
   try { rec = new MediaRecorder(stream, Object.assign({ videoBitsPerSecond: bitrate(), audioBitsPerSecond: 192000 }, type ? { mimeType: type } : {})); }
   catch (e) { try { rec = new MediaRecorder(stream); } catch (e2) { hud("Запись не запустилась: " + e2.message); return; } }
   rec.ondataavailable = ev => { if (ev.data && ev.data.size) chunks.push(ev.data); };
   rec.onstop = fsaved;
-  rec.start(1000); recT0 = Date.now();
-  document.body.classList.add("frecording"); $("#f-rec").textContent = "⏹";
-  $("#frec").textContent = "● 0:00";
-  recTimer = setInterval(() => { const s = Math.floor((Date.now() - recT0) / 1000); $("#frec").textContent = "● " + Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }, 250);
+  rec.start(1000); recT0 = Date.now(); recAcc = 0; mic.takePeak = 0;
+  document.body.classList.add("frecording"); document.body.classList.remove("fpaused");
+  $("#f-rec").textContent = "⏹"; $("#f-pause").textContent = "⏸";
+  fclock(); clearInterval(recTimer); recTimer = setInterval(fclock, 250);
   fplay(true); wake();
 }
+function fpause(back) {  // ⏸ the recording and the text stop together; ▶︎ both go on, the file keeps everything before
+  if (!rec) return;
+  if (rec.state === "recording") {
+    try { rec.pause(); } catch (e) { hud("Пауза здесь не работает: ⏹ закончит дубль"); return; }
+    recAcc += Date.now() - recT0; fplay(false);
+    if (back) fnudge(-90);
+    document.body.classList.add("fpaused"); $("#f-pause").textContent = "▶︎";
+    hud(back ? "⏸ Пауза, текст назад на 2 строки" : "⏸ Пауза: снятое не сбросится"); fclock();
+  } else if (rec.state === "paused") {
+    micWake();
+    try { rec.resume(); } catch (e) { hud("Не продолжилось: " + e.message); return; }
+    recT0 = Date.now();
+    document.body.classList.remove("fpaused"); $("#f-pause").textContent = "⏸";
+    fplay(true); fclock();
+  }
+}
+function fback() { if (rec && rec.state === "recording") fpause(true); else fnudge(-90); }
 function frecStop() {
   fplay(false); clearInterval(recTimer);
   if (rec && rec.state !== "inactive") { try { rec.requestData(); } catch (e) {} rec.stop(); }
-  document.body.classList.remove("frecording"); $("#f-rec").textContent = "⏺";
+  document.body.classList.remove("frecording", "fpaused"); $("#f-rec").textContent = "⏺"; $("#f-pause").textContent = "⏸";
 }
 function fsaved() {
   const type = (rec && rec.mimeType) || (chunks[0] && chunks[0].type) || "video/mp4";
@@ -607,9 +678,12 @@ function fsaved() {
   const it = items[fcur], m = /([A-Z]{2}\d+_\d{4})/.exec(it ? it.tag : ""), d = new Date(), z = n => String(n).padStart(2, "0");
   const name = (m ? m[1] : (it ? it.id : "take")) + "_front_" + z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds()) + "." + ext;
   take = { file: new File([blob], name, { type }), url: URL.createObjectURL(blob), saved: false };
-  const pv = $("#fpv"); pv.src = take.url; pv.load();
   const s = stream ? stream.getVideoTracks()[0].getSettings() : {};
-  $("#fdone .info").textContent = name + " · " + (blob.size / 1048576).toFixed(blob.size < 1e7 ? 1 : 0) + " МБ" + (s.width ? " · " + Math.min(s.width, s.height) + "p" : "") + " · нажми 💾 и выбери «Сохранить видео»";
+  const quiet = !!(mic.an && mic.ctx && mic.ctx.state === "running") && mic.takePeak < 0.01;  // only when the meter really ran
+  // the mic is closed BEFORE the preview: with an open mic iOS sends sound to the earpiece (quiet, «как звонок»)
+  camStop(); try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) {}
+  const pv = $("#fpv"); pv.volume = 1; pv.muted = false; pv.src = take.url; pv.load();
+  $("#fdone .info").textContent = (quiet ? "⚠️ Микрофон почти не слышно, проверь звук. " : "") + name + " · " + (blob.size / 1048576).toFixed(blob.size < 1e7 ? 1 : 0) + " МБ" + (s.width ? " · " + Math.min(s.width, s.height) + "p" : "") + " · нажми 💾 и выбери «Сохранить видео»";
   $("#fdone").style.display = "flex";
 }
 async function fsave() {
@@ -650,8 +724,22 @@ function fnext() {
   const next = visible().find(i => !done.has(i.id));
   next ? fopen(items.indexOf(next)) : (history.state && history.state.stage ? history.back() : fclose());
 }
-$("#fband").addEventListener("click", () => { if (!fcounting && $("#fdone").style.display !== "flex") fplay(!fscroll); });
-$("#f-rec").onclick = frecToggle;
+$("#fband").addEventListener("click", () => {
+  micWake();
+  if (fdragged) { fdragged = false; return; }
+  if ($("#fdone").style.display !== "flex" && !fpausedNow()) fplay(!fscroll);
+});
+// the text stands (pause, before ⏺): drag it with a finger to the line to read from
+$("#fband").addEventListener("pointerdown", e => { fdragged = false; if (fscroll) return; fdragY = e.clientY; fdragP = fpos; });
+$("#fband").addEventListener("pointermove", e => {
+  if (fdragY === null || fscroll) return;
+  const dy = e.clientY - fdragY;
+  if (Math.abs(dy) > 6) fdragged = true;
+  if (fdragged) { fpos = Math.max(0, Math.min(fmax(), fdragP - dy)); fdraw(); }
+});
+["pointerup", "pointercancel"].forEach(n => $("#fband").addEventListener(n, () => { fdragY = null; }));
+$("#f-rec").onclick = () => { micWake(); busyRec() ? frecStop() : frecStart(); };
+$("#f-pause").onclick = () => fpause();
 $("#f-back").onclick = () => { if (busyRec()) return; history.state && history.state.stage ? history.back() : fclose(); };
 $("#f-slow").onclick = () => fspeedD(-5); $("#f-fast").onclick = () => fspeedD(5);
 $("#f-small").onclick = () => ffontD(-2); $("#f-big").onclick = () => ffontD(2);
@@ -663,13 +751,18 @@ $("#f-q").onclick = async () => {
 };
 $("#f-retry").onclick = () => camStart();
 $("#f-save").onclick = fsave;
-$("#f-again").onclick = () => { if (unsavedOk()) fdrop(); };
+$("#f-again").onclick = () => { if (unsavedOk()) { fdrop(); camStart(); } };
 $("#f-next").onclick = fnext;
+$("#f-list").onclick = () => {  // 28.11 Alex: after a take, back to the scripts (an unsaved take asks first)
+  if (!unsavedOk()) return;
+  if (take) take.saved = true;
+  fdrop(); history.state && history.state.stage ? history.back() : fclose();
+};
 document.querySelectorAll("#modes [data-m]").forEach(b => b.onclick = () => { S.mode = b.dataset.m; store.set("mode", S.mode); renderList();
   hud(S.mode === "front" ? "🤳 Фронталка: открой сценарий" : "🪞 Телесуфлёр"); });
 document.addEventListener("visibilitychange", () => {
   if (!inFront()) return;
-  if (document.visibilityState === "hidden" && rec && rec.state === "recording") frecStop();  // the take so far is kept
+  if (document.visibilityState === "hidden" && busyRec()) frecStop();  // the take so far is kept
   if (document.visibilityState === "visible" && !busyRec() && (!stream || !stream.active)) camStart();
 });
 addEventListener("resize", () => { if (inFront()) fview(); });
