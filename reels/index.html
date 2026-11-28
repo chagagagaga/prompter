@@ -1049,6 +1049,7 @@ function infoHtml(x) {
   if (x.trial !== undefined && (x.trial || x.trial_hook)) h += `<div class="box"><h3>🧪 Пробная версия (только Instagram)</h3><div class="hint" style="font-size:14px">Хук: ${esc(x.trial_hook || "")}<br>Другие картинки и кадр 0. Выйдет пробным роликом, основная лента её не видит.</div>${(x.trial_notes||[]).length ? `<div class="hint" style="color:#c80">⚠️ Пришла с замечаниями (не прошла проверку после доработки), решай сам:<br>${x.trial_notes.map(esc).join("<br>")}</div>` : ""}${x.trial ? `<div class="hint">Видео пробной версии открыто вверху, под основной.</div>` : `<div class="hint">${noVideo(x)}</div>`}</div>`;
   if (x.hookdir) h += hookHtml(x.hookdir);
   if (x.audio && (x.state === "review" || x.state === "script")) h += karaokeHtml(x);
+  if ((x.tail || []).length && (x.state === "review" || x.state === "script")) h += tailHtml(x);
   if (x.state === "review") {
     h += `<div class="box"><h3>Хук</h3><div class="pack" style="font-size:17px;font-weight:700">${esc(x.hook)}</div>
       <div class="hint" style="margin-top:6px">${esc(x.format || "")} · ${esc(x.sec || "")} сек · оценка ${esc(x.score || "")}</div></div>`;
@@ -1163,8 +1164,39 @@ async function bindKaraoke(x) {
     if (m) a.currentTime = Math.max(0, m[1] - 0.05); playIt(a); });
 }
 
+// 28.11, Alex: he listens before recording, and records the YouTube/TikTok line and the second hook too: each its own ▶︎
+function tailHtml(x) {
+  return `<div class="box"><h3>🎧 Ещё записать: послушай каждую фразу</h3>` + x.tail.map((t, i) =>
+    `<div class="row" style="align-items:flex-start;gap:10px;margin-bottom:12px;flex-wrap:nowrap">
+      <button class="btn tplay" data-i="${i}" style="padding:8px 14px;flex:none"${t.audio ? "" : " disabled"}>${t.audio ? "▶︎" : "⏳"}</button>
+      <div class="pack" style="font-size:16px;line-height:1.5"><div class="hint" style="font-size:12.5px">${esc(t.label)}</div>${esc(t.text)}</div></div>`).join("")
+    + (x.tail.some((t) => !t.audio) ? `<div class="hint">⏳ Озвучка фразы готовится, появится через минуту-две</div>` : "") + `</div>`;
+}
+function bindTail(x) {
+  document.querySelectorAll(".tplay").forEach((bt) => bt.onclick = async () => {
+    const t = (x.tail || [])[+bt.dataset.i]; if (!t || !t.audio) return;
+    unlockAudio();
+    const id = x.id + "~t" + bt.dataset.i;
+    const reset = () => document.querySelectorAll(".tplay").forEach((b) => { if (!b.disabled) b.textContent = "▶︎"; });
+    if (AUD && AUD_ID === id) { if (AUD.paused) { reset(); AUD.play(); bt.textContent = "⏸"; } else { AUD.pause(); bt.textContent = "▶︎"; } return; }
+    if (AUD) AUD.pause();
+    $("#kplay") && ($("#kplay").textContent = "▶︎ Слушать");
+    reset(); bt.textContent = "…";
+    try {
+      const b = await open(await getVideo("../a/" + t.audio).catch(() => fetchVideo("../a/" + t.audio)));
+      if (AUD_EL.src && AUD_EL.src.startsWith("blob:")) URL.revokeObjectURL(AUD_EL.src);
+      AUD_EL.src = URL.createObjectURL(new Blob([b], { type: "audio/mpeg" })); AUD_EL.load();
+      AUD = AUD_EL; AUD_ID = id;
+      AUD.onended = () => { bt.textContent = "▶︎"; };
+      const p = AUD.play(); bt.textContent = "⏸";
+      if (p && p.catch) p.catch(() => { bt.textContent = "▶︎"; toast("Звук не запустился: нажми ещё раз"); });
+    } catch (e) { bt.textContent = "▶︎"; toast("Не загрузилось, нажми ещё раз"); }
+  });
+}
+
 function bindInfo(x) {
   bindKaraoke(x);
+  bindTail(x);
   document.querySelectorAll("a.extlink").forEach((a) => a.onclick = (e) => {  // 25.10: inside Telegram a plain link didn't open
     try { if (TG && TG.openLink) { e.preventDefault(); TG.openLink(a.href, { try_instant_view: false }); } } catch (er) {}
   });
