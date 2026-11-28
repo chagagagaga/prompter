@@ -160,7 +160,7 @@ a.dl { display:block; margin-top:8px; padding:14px 10px; border-radius:12px; bac
 <script>
 (() => {
 const $ = s => document.querySelector(s);
-const VERSION = "28.11-front6";
+const VERSION = "28.11-front7";
 // always the newest page (Alex 16.10: the iPhone kept an old copy): compare with the published file, reload if it differs
 fetch("index.html?t=" + Date.now(), { cache: "no-store" }).then(r => r.text()).then(t => {
   const m = t.match(/const VERSION = "([^"]+)"/);
@@ -749,20 +749,61 @@ const BIG = () => (window.__tpBig || 40e6);
 // download breaks half way and leaves a playable START of the file. A big take now goes in parts of ~90 MB (each a few
 // seconds); the Mac joins «…__p01of06.mp4…» back into one file (content-engine tools/join_parts.py) and checks the length.
 const PART = () => (window.__tpPart || 90e6);
-function dlLink(blob, name, box, onTap) {
+// 28.11 front7 (Alex: «9 файлов скачал, и они нихуя не открываются»): a plain slice of the file plays only as part 1. Safari's
+// take is a fragmented MP4 (ftyp + moov, then moof/mdat about every second): parts are cut at a moof and parts 2..n get the
+// take's own header in front, so EVERY part opens by itself (~20 s of the take). The Mac (content-engine tools/join_parts.py)
+// drops those header copies and gets the exact original file back. Anything else (webm, a broken file) = plain slices.
+async function mp4Parts(blob, P) {
+  try {
+    if (blob.size <= P) return [blob];
+    const moofs = []; let off = 0, n = 0, first = "";
+    while (off + 8 <= blob.size) {
+      const v = new DataView(await blob.slice(off, off + 16).arrayBuffer());
+      let sz = v.getUint32(0);
+      const t = String.fromCharCode(v.getUint8(4), v.getUint8(5), v.getUint8(6), v.getUint8(7));
+      if (sz === 1) sz = v.getUint32(8) * 4294967296 + v.getUint32(12);
+      if (sz < 8 || ++n > 200000) return null;
+      if (!first) first = t;
+      if (t === "moof") moofs.push(off);
+      off += sz;
+    }
+    if (off !== blob.size || first !== "ftyp" || !moofs.length) return null;
+    const init = blob.slice(0, moofs[0]), cuts = [0];
+    for (const o of moofs) if (o - cuts[cuts.length - 1] >= P) cuts.push(o);
+    if (blob.size - cuts[cuts.length - 1] < P * 0.15 && cuts.length > 1) cuts.pop();  // no tiny last part
+    cuts.push(blob.size);
+    const out = [];
+    for (let k = 0; k + 1 < cuts.length; k++) {
+      const body = blob.slice(cuts[k], cuts[k + 1]);
+      out.push(k === 0 ? new Blob([body], { type: blob.type }) : new Blob([init, body], { type: blob.type }));
+    }
+    return out;
+  } catch (e) { return null; }
+}
+async function dlLink(blob, name, box, onTap) {
   box.querySelectorAll("a.dl, .dlhint").forEach(x => x.remove());
-  const P = PART(), n = Math.max(1, Math.ceil(blob.size / P));
+  const tok = {}; box._dlTok = tok;
+  const h = document.createElement("div"); h.className = "dlhint"; h.textContent = "Готовлю скачивание…"; box.append(h);
+  const P = PART();
+  let parts = /mp4/i.test((blob.type || "") + name) ? await mp4Parts(blob, P) : null;
+  if (box._dlTok !== tok) return;  // a newer call took over
+  const playable = !!parts;
+  if (!parts) {
+    const k = Math.max(1, Math.ceil(blob.size / P)); parts = [];
+    for (let i = 0; i < k; i++) parts.push(k === 1 ? blob : blob.slice(i * P, Math.min(blob.size, (i + 1) * P), blob.type));
+  }
+  const n = parts.length;
   const dot = name.lastIndexOf("."), base = dot > 0 ? name.slice(0, dot) : name, ext = dot > 0 ? name.slice(dot) : ".mp4";
   const z2 = k => String(k).padStart(2, "0"), tapped = new Set();
-  const h = document.createElement("div"); h.className = "dlhint";
   h.textContent = n === 1
-    ? "Нажми ⬇️, потом «Загрузить». Видео ляжет в «Файлы → Загрузки»: AirDrop на Мак. Дубль остаётся в памяти суфлёра 7 дней."
-    : "Дубль большой, он скачивается частями (так Safari не обрывает). Нажимай части по очереди: «Загрузить» → дождись, пока докачается " +
-      "(⬇️ вверху Safari), потом следующую. Потом все " + n + " части из «Файлы → Загрузки» одним AirDrop на Мак: Мак сам склеит их в один " +
-      "ролик. Дубль остаётся в памяти суфлёра 7 дней.";
-  box.append(h);
+    ? "Нажми ⬇️, потом «Загрузить». Видео ляжет в «Файлы → Загрузки» (не в «Фото»): оттуда AirDrop на Мак. Дубль остаётся в памяти суфлёра 7 дней."
+    : "Дубль большой, поэтому он скачивается частями (одним файлом Safari его обрывает). " +
+      (playable ? "Каждая часть — кусок ролика, её можно открыть и посмотреть. " : "") +
+      "Нажимай части по очереди: «Загрузить» → дождись, пока докачается (⬇️ вверху Safari), потом следующую. Части лежат в " +
+      "«Файлы → Загрузки» (не в «Фото»). Выдели все " + n + " и одним AirDrop кинь на Мак: Мак сам соберёт один ролик. " +
+      "Дубль остаётся в памяти суфлёра 7 дней.";
   for (let i = 0; i < n; i++) {
-    const part = n === 1 ? blob : blob.slice(i * P, Math.min(blob.size, (i + 1) * P), blob.type);
+    const part = parts[i];
     const a = document.createElement("a"); a.className = "dl"; a.href = URL.createObjectURL(part);
     a.download = n === 1 ? name : base + "__p" + z2(i + 1) + "of" + z2(n) + ext;
     const label = (n === 1 ? "Скачать в Файлы · " : "Часть " + (i + 1) + " из " + n + " · ") + fmtMB(part.size);
