@@ -58,6 +58,7 @@ button.on { background:var(--acc); color:#000; }
 #frecover .r button { flex:1; padding:10px 6px; font-size:15px; background:rgba(255,255,255,.16); color:#fff; }
 #frecover .r button.s { background:var(--acc); color:#000; font-weight:700; }
 a.dl.done { opacity:.55; }
+body.fdiskfull #frec { background:#c00; color:#fff; font-weight:800; }
 a.dl { display:block; margin-top:8px; padding:14px 10px; border-radius:12px; background:var(--acc); color:#000; font-weight:800; font-size:17px; text-align:center; text-decoration:none; }
 .dlhint { font-size:13px; opacity:.8; margin-top:6px; line-height:1.35; }
 #modes button small { display:block; font-size:12px; opacity:.75; }
@@ -675,6 +676,25 @@ function tdbPush(b) {  // in order; if the disk refuses once, this and every lat
     return tdbReq("chunks", "readwrite", st => st.add({ take: id, i, blob: b })).then(() => { TDB.saved++; }).catch(() => { TDB.ok = false; chunks.push(b); });
   });
 }
+// 28.11 front5 (128: 204 MB = 45 s kept of a 2+ min take): the phone storage of the page filled up with old 4K takes, the
+// disk refused the rest, it lived in memory only and was lost. Before a take: room for ~6 min at this quality, made by
+// removing the oldest takes ALREADY DOWNLOADED (never an unsaved one); not enough -> a clear warning.
+async function makeRoom() {
+  try {
+    if (!navigator.storage || !navigator.storage.estimate) return true;
+    const e = await navigator.storage.estimate();
+    const need = bitrate() / 8 * 360;
+    let free = (e.quota || 0) - (e.usage || 0);
+    if (!e.quota || free >= need) return true;
+    const old = (await tdbTakes()).filter(t => t.saved).sort((a, b) => (a.savedAt || a.id) - (b.savedAt || b.id));
+    for (const t of old) {
+      if (free >= need) break;
+      const sz = (await tdbChunks(t.id)).reduce((x, b) => x + b.size, 0);
+      if (await tdbDel(t.id)) free += sz;
+    }
+    return free >= need;
+  } catch (e) { return true; }
+}
 async function tdbBlob(id, type) { return new Blob(await tdbChunks(id), { type }); }
 function fmtMB(n) { return (n / 1048576).toFixed(n < 1e7 ? 1 : 0) + " МБ"; }
 async function tdbRecover() {
@@ -748,7 +768,8 @@ async function shareFile(file, url) {  // true = saved / shared; the page never 
 function fclock() {
   const ms = recAcc + (rec && rec.state === "recording" ? Date.now() - recT0 : 0), t = Math.floor(ms / 1000);
   // «💾 N с» = seconds already on the phone's disk (they survive a crash); «⚠️» = this browser holds the take in memory only
-  const disk = TDB.ok && TDB.saved ? " · 💾 " + TDB.saved + " с" : (t >= 4 ? " · ⚠️ только в памяти" : "");
+  const disk = TDB.ok && TDB.saved ? " · 💾 " + TDB.saved + " с" : (t >= 4 ? " · ⚠️ ПАМЯТЬ ПОЛНАЯ: после ⏹ сразу скачай дубль" : "");
+  document.body.classList.toggle("fdiskfull", !TDB.ok && t >= 4);
   $("#frec").textContent = (fpausedNow() ? "⏸ " : "● ") + Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0") + (fpausedNow() ? " пауза" : "") + disk;
 }
 function frecToggle() {  // keyboard / remote / gamepad: start, stop; on pause it goes on (a stop from pause = the ⏹ button)
@@ -768,6 +789,8 @@ async function frecStart() {
   const mt = rec.mimeType || type || "video/mp4";
   const name = (m ? m[1] : (it ? it.id : "take")) + "_front_" + z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds()) + "." + (/mp4/.test(mt) ? "mp4" : "webm");
   TDB.id = Date.now(); TDB.n = 0; TDB.q = Promise.resolve(); TDB.ok = false; TDB.saved = 0;
+  if (!(await makeRoom())) alert("⚠️ В памяти суфлёра мало места для нового дубля. Внизу списка сценариев скачай (⬇️) и удали (🗑) старые " +
+    "дубли, иначе дубль может обрезаться. Или переключи 4K → 1080 (файл в 2,5 раза меньше).");
   try {
     for (const t of await tdbTakes()) if (t.saved && Date.now() - (t.savedAt || 0) > 7 * 864e5) await tdbDel(t.id);  // downloaded > 7 days ago (front5: was 24 h)
     await tdbPut({ id: TDB.id, name, type: mt, tag: it ? it.tag : "", rid: it ? it.id : "", saved: false });
@@ -803,7 +826,7 @@ function fback() { if (busyRec() && !softPause) fpause(true); else fnudge(-90); 
 function frecStop() {
   fplay(false); clearInterval(recTimer); softPause = false;
   if (rec && rec.state !== "inactive") { try { rec.requestData(); } catch (e) {} rec.stop(); }
-  document.body.classList.remove("frecording", "fpaused"); $("#f-rec").textContent = "⏺"; $("#f-pause").textContent = "⏸";
+  document.body.classList.remove("frecording", "fpaused", "fdiskfull"); $("#f-rec").textContent = "⏺"; $("#f-pause").textContent = "⏸";
 }
 async function fsaved() {
   const type = (rec && rec.mimeType) || "video/mp4", id = TDB.id;
@@ -822,6 +845,7 @@ async function fsaved() {
   } catch (e) {}
   const name = meta ? meta.name : "take_front." + (/mp4/.test(type) ? "mp4" : "webm");
   take = { id, file: new File([blob], name, { type }), url: URL.createObjectURL(blob), saved: false, disk: !!meta && TDB.ok };
+  if (!TDB.ok && chunks.length === 0 && parts.length) hud("⚠️ Часть дубля только в памяти страницы: скачай его СЕЙЧАС, страницу не закрывай");
   const s = stream ? stream.getVideoTracks()[0].getSettings() : {};
   const quiet = !!(mic.an && mic.ctx && mic.ctx.state === "running") && mic.takePeak < 0.01;  // only when the meter really ran
   // the mic is closed BEFORE the preview: with an open mic iOS sends sound to the earpiece (quiet, «как звонок»)
