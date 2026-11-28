@@ -53,6 +53,10 @@ button.on { background:var(--acc); color:#000; }
 #hud { position:absolute; top:calc(env(safe-area-inset-top) + 8px); left:50%; transform:translateX(-50%); background:rgba(30,30,32,.9); color:#fff; padding:8px 14px; border-radius:10px; font-size:15px; display:none; z-index:12; white-space:nowrap; }
 /* 28.11 🤳 Фронталка: the page records the front camera itself, the text runs at the top, right under the lens */
 #modes button { flex:1 1 0; padding:10px 8px; font-size:15px; line-height:1.25; }
+#frecover .r { background:#3a1d00; border:1px solid #ff9f0a; border-radius:12px; padding:10px 12px; margin:8px 0; font-size:15px; line-height:1.35; }
+#frecover .r div { display:flex; gap:8px; margin-top:8px; }
+#frecover .r button { flex:1; padding:10px 6px; font-size:15px; background:rgba(255,255,255,.16); color:#fff; }
+#frecover .r button.s { background:var(--acc); color:#000; font-weight:700; }
 #modes button small { display:block; font-size:12px; opacity:.75; }
 #cam { position:fixed; inset:0; background:#000; display:none; z-index:7; overflow:hidden; color:#fff; touch-action:manipulation; }
 #cv { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
@@ -103,6 +107,7 @@ button.on { background:var(--acc); color:#000; }
     <button data-m="tp">🪞 Телесуфлёр<small>телефон в суфлёре, задняя камера</small></button>
     <button data-m="front">🤳 Фронталка<small>текст на экране, запись здесь</small></button>
   </div>
+  <div id="frecover"></div>
   <div class="tabs">
     <button data-f="all">Все</button><button data-f="ru">РУ</button><button data-f="en">США</button>
     <button id="reload">↻</button>
@@ -150,7 +155,7 @@ button.on { background:var(--acc); color:#000; }
 <script>
 (() => {
 const $ = s => document.querySelector(s);
-const VERSION = "28.11-front2";
+const VERSION = "28.11-front3";
 // always the newest page (Alex 16.10: the iPhone kept an old copy): compare with the published file, reload if it differs
 fetch("index.html?t=" + Date.now(), { cache: "no-store" }).then(r => r.text()).then(t => {
   const m = t.match(/const VERSION = "([^"]+)"/);
@@ -223,6 +228,7 @@ function renderDays() {
 }
 
 function renderList() {
+  if (typeof tdbRecover === "function") tdbRecover();
   $("#list").classList.toggle("m", !!S.mirror && S.mode !== "front");
   $("#list").style.zoom = S.ui || 1;
   document.querySelectorAll("#modes [data-m]").forEach(b => b.classList.toggle("on", b.dataset.m === S.mode));
@@ -623,9 +629,86 @@ function bitrate() {  // the iPhone camera's own H.264 bitrates: 4K30 ~45, 1080p
   const s = stream.getVideoTracks()[0].getSettings(), px = (s.width || 1920) * (s.height || 1080);
   return px >= 3840 * 2160 * 0.8 ? 40e6 : px >= 1920 * 1080 * 0.8 ? 16e6 : 8e6;
 }
+// 28.11 Alex: «снял 161, нажал сохранить, и он просто пропал». A 4K take lived whole in Safari's memory (~400 MB a minute)
+// and the tab was killed on «Сохранить». Now every 1-s chunk goes to IndexedDB the moment it comes (on disk, out of memory),
+// the take is built from there (a disk-backed file), and a take the page lost (a crash, a reload) waits on the list:
+// «⚠️ Не сохранён дубль…» 💾 / 🗑. Saved takes are cleared when the next take starts; unsaved ones only by his 🗑.
+const TDB = { db: null, q: Promise.resolve(), id: 0, n: 0, ok: false, saved: 0 };
+function tdbOpen() {
+  if (TDB.db) return Promise.resolve(TDB.db);
+  return new Promise((res, rej) => {
+    let r; try { r = indexedDB.open("tp_takes", 1); } catch (e) { rej(e); return; }
+    r.onupgradeneeded = () => { const d = r.result; d.createObjectStore("takes", { keyPath: "id" });
+      d.createObjectStore("chunks", { autoIncrement: true }).createIndex("take", "take"); };
+    r.onsuccess = () => { TDB.db = r.result; res(TDB.db); };
+    r.onerror = () => rej(r.error);
+  });
+}
+function tdbReq(store, mode, fn) {  // one request in its own transaction, resolved when the transaction is complete
+  return tdbOpen().then(d => new Promise((res, rej) => {
+    const tx = d.transaction(store, mode); let rq;
+    try { rq = fn(tx.objectStore(store), tx); } catch (e) { rej(e); return; }
+    tx.oncomplete = () => { try { res(rq ? rq.result : undefined); } catch (e) { res(undefined); } };
+    tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error || new Error("abort"));
+  }));
+}
+const tdbPut = m => tdbReq("takes", "readwrite", st => st.put(m));
+const tdbTakes = () => tdbReq("takes", "readonly", st => st.getAll());
+const tdbChunks = id => tdbReq("chunks", "readonly", st => st.index("take").getAll(id)).then(a => (a || []).sort((x, y) => x.i - y.i).map(c => c.blob));
+function tdbDel(id) {
+  return tdbOpen().then(d => new Promise(res => {
+    const tx = d.transaction(["takes", "chunks"], "readwrite");
+    tx.objectStore("takes").delete(id);
+    const cs = tx.objectStore("chunks");
+    cs.index("take").openKeyCursor(IDBKeyRange.only(id)).onsuccess = e => { const c = e.target.result; if (c) { cs.delete(c.primaryKey); c.continue(); } };
+    tx.oncomplete = () => res(true); tx.onerror = () => res(false); tx.onabort = () => res(false);
+  })).catch(() => false);
+}
+function tdbPush(b) {  // in order; if the disk refuses once, this and every later chunk stay in memory (nothing lost)
+  const i = TDB.n++, id = TDB.id;
+  TDB.q = TDB.q.then(() => {
+    if (!TDB.ok) { chunks.push(b); return; }
+    return tdbReq("chunks", "readwrite", st => st.add({ take: id, i, blob: b })).then(() => { TDB.saved++; }).catch(() => { TDB.ok = false; chunks.push(b); });
+  });
+}
+async function tdbBlob(id, type) { return new Blob(await tdbChunks(id), { type }); }
+function fmtMB(n) { return (n / 1048576).toFixed(n < 1e7 ? 1 : 0) + " МБ"; }
+async function tdbRecover() {
+  const box = $("#frecover"); if (!box) return;
+  let ts = [];
+  try { ts = (await tdbTakes()).filter(t => !t.saved && (!take || t.id !== take.id) && !(busyRec() && t.id === TDB.id)); } catch (e) { box.innerHTML = ""; return; }
+  box.innerHTML = "";
+  for (const t of ts.sort((a, b) => b.id - a.id).slice(0, 5)) {
+    const d = new Date(t.id), z = n => String(n).padStart(2, "0");
+    const r = document.createElement("div"); r.className = "r";
+    r.innerHTML = "⚠️ Не сохранён дубль <b></b> · снят в " + z(d.getHours()) + ":" + z(d.getMinutes()) + " · <span>…</span><div><button class=\"s\">💾 Сохранить</button><button class=\"d\">🗑 Удалить</button></div>";
+    r.querySelector("b").textContent = t.tag || t.name;
+    box.append(r);
+    tdbChunks(t.id).then(a => { r.querySelector("span").textContent = fmtMB(a.reduce((x, b) => x + b.size, 0)); }).catch(() => {});
+    r.querySelector(".s").onclick = async () => {
+      const blob = await tdbBlob(t.id, t.type || "video/mp4");
+      if (!blob.size) { hud("Пусто: в памяти ничего не осталось"); return; }
+      const ok = await shareFile(new File([blob], t.name, { type: t.type || "video/mp4" }), URL.createObjectURL(blob));
+      if (ok) { t.saved = true; t.savedAt = Date.now(); await tdbPut(t).catch(() => {}); tdbRecover(); }
+    };
+    r.querySelector(".d").onclick = async () => { if (confirm("Удалить этот дубль насовсем?")) { await tdbDel(t.id); tdbRecover(); } };
+  }
+}
+async function shareFile(file, url) {  // true = saved / shared; the page never navigates away (that lost the take too)
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); hud("✓ Готово. Проверь в Фото"); return true; }
+  } catch (e) {
+    if (e.name === "AbortError") return false;
+    hud("«Поделиться» не открылось (" + e.name + "): сохраняю в Файлы. Дубль цел в памяти телефона");
+  }
+  const a = document.createElement("a"); a.href = url; a.download = file.name;
+  document.body.append(a); a.click(); a.remove(); return true;
+}
 function fclock() {
   const ms = recAcc + (rec && rec.state === "recording" ? Date.now() - recT0 : 0), t = Math.floor(ms / 1000);
-  $("#frec").textContent = (fpausedNow() ? "⏸ " : "● ") + Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0") + (fpausedNow() ? " пауза" : "");
+  // «💾 N с» = seconds already on the phone's disk (they survive a crash); «⚠️» = this browser holds the take in memory only
+  const disk = TDB.ok && TDB.saved ? " · 💾 " + TDB.saved + " с" : (t >= 4 ? " · ⚠️ только в памяти" : "");
+  $("#frec").textContent = (fpausedNow() ? "⏸ " : "● ") + Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0") + (fpausedNow() ? " пауза" : "") + disk;
 }
 function frecToggle() {  // keyboard / remote / gamepad: start, stop; on pause it goes on (a stop from pause = the ⏹ button)
   if (fpausedNow()) { fpause(); return; }
@@ -640,7 +723,17 @@ async function frecStart() {
   const type = pickType(); chunks = [];
   try { rec = new MediaRecorder(stream, Object.assign({ videoBitsPerSecond: bitrate(), audioBitsPerSecond: 192000 }, type ? { mimeType: type } : {})); }
   catch (e) { try { rec = new MediaRecorder(stream); } catch (e2) { hud("Запись не запустилась: " + e2.message); return; } }
-  rec.ondataavailable = ev => { if (ev.data && ev.data.size) chunks.push(ev.data); };
+  const it = items[fcur], m = /([A-Z]{2}\d+_\d{4})/.exec(it ? it.tag : ""), d = new Date(), z = n => String(n).padStart(2, "0");
+  const mt = rec.mimeType || type || "video/mp4";
+  const name = (m ? m[1] : (it ? it.id : "take")) + "_front_" + z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds()) + "." + (/mp4/.test(mt) ? "mp4" : "webm");
+  TDB.id = Date.now(); TDB.n = 0; TDB.q = Promise.resolve(); TDB.ok = false; TDB.saved = 0;
+  try {
+    for (const t of await tdbTakes()) if (t.saved) await tdbDel(t.id);  // saved takes are not kept past the next one
+    await tdbPut({ id: TDB.id, name, type: mt, tag: it ? it.tag : "", rid: it ? it.id : "", saved: false });
+    TDB.ok = true;
+  } catch (e) { TDB.ok = false; }
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  rec.ondataavailable = ev => { if (ev.data && ev.data.size) tdbPush(ev.data); };
   rec.onstop = fsaved;
   rec.start(1000); recT0 = Date.now(); recAcc = 0; mic.takePeak = 0;
   document.body.classList.add("frecording"); document.body.classList.remove("fpaused");
@@ -670,31 +763,40 @@ function frecStop() {
   if (rec && rec.state !== "inactive") { try { rec.requestData(); } catch (e) {} rec.stop(); }
   document.body.classList.remove("frecording", "fpaused"); $("#f-rec").textContent = "⏺"; $("#f-pause").textContent = "⏸";
 }
-function fsaved() {
-  const type = (rec && rec.mimeType) || (chunks[0] && chunks[0].type) || "video/mp4";
-  const blob = new Blob(chunks, { type }); chunks = [];
-  if (!blob.size) { hud("Пустая запись, попробуй ещё раз"); return; }
-  const ext = /mp4/.test(type) ? "mp4" : "webm";
-  const it = items[fcur], m = /([A-Z]{2}\d+_\d{4})/.exec(it ? it.tag : ""), d = new Date(), z = n => String(n).padStart(2, "0");
-  const name = (m ? m[1] : (it ? it.id : "take")) + "_front_" + z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds()) + "." + ext;
-  take = { file: new File([blob], name, { type }), url: URL.createObjectURL(blob), saved: false };
+async function fsaved() {
+  const type = (rec && rec.mimeType) || "video/mp4", id = TDB.id;
+  $("#fdone .info").textContent = "Собираю дубль…"; $("#fdone").style.display = "flex";
+  await TDB.q;
+  let parts = [];
+  try { parts = await tdbChunks(id); } catch (e) { parts = []; }
+  parts = parts.concat(chunks); chunks = [];
+  const blob = new Blob(parts, { type });
+  if (!blob.size) { $("#fdone").style.display = "none"; hud("Пустая запись, попробуй ещё раз"); return; }
+  let meta = null;
+  try { meta = (await tdbTakes()).find(t => t.id === id); } catch (e) {}
+  const name = meta ? meta.name : "take_front." + (/mp4/.test(type) ? "mp4" : "webm");
+  take = { id, file: new File([blob], name, { type }), url: URL.createObjectURL(blob), saved: false, disk: !!meta && TDB.ok };
   const s = stream ? stream.getVideoTracks()[0].getSettings() : {};
   const quiet = !!(mic.an && mic.ctx && mic.ctx.state === "running") && mic.takePeak < 0.01;  // only when the meter really ran
   // the mic is closed BEFORE the preview: with an open mic iOS sends sound to the earpiece (quiet, «как звонок»)
   camStop(); try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) {}
   const pv = $("#fpv"); pv.volume = 1; pv.muted = false; pv.src = take.url; pv.load();
-  $("#fdone .info").textContent = (quiet ? "⚠️ Микрофон почти не слышно, проверь звук. " : "") + name + " · " + (blob.size / 1048576).toFixed(blob.size < 1e7 ? 1 : 0) + " МБ" + (s.width ? " · " + Math.min(s.width, s.height) + "p" : "") + " · нажми 💾 и выбери «Сохранить видео»";
-  $("#fdone").style.display = "flex";
+  $("#fdone .info").textContent = (quiet ? "⚠️ Микрофон почти не слышно, проверь звук. " : "") + name + " · " + fmtMB(blob.size) +
+    (s.width ? " · " + Math.min(s.width, s.height) + "p" : "") + (take.disk ? " · дубль в памяти телефона" : "") + " · нажми 💾 и выбери «Сохранить видео»";
 }
 async function fsave() {
   if (!take) return;
-  try {
-    if (navigator.canShare && navigator.canShare({ files: [take.file] })) { await navigator.share({ files: [take.file] }); take.saved = true; hud("✓ Сохранено"); return; }
-  } catch (e) { if (e.name === "AbortError") return; }
-  const a = document.createElement("a"); a.href = take.url; a.download = take.file.name; document.body.append(a); a.click(); a.remove(); take.saved = true;
+  if (await shareFile(take.file, take.url)) {
+    take.saved = true;
+    try { const t = (await tdbTakes()).find(x => x.id === take.id); if (t) { t.saved = true; t.savedAt = Date.now(); await tdbPut(t); } } catch (e) {}
+  }
 }
-function fdrop() { if (take) URL.revokeObjectURL(take.url); take = null; $("#fpv").removeAttribute("src"); try { $("#fpv").load(); } catch (e) {} $("#fdone").style.display = "none"; fpos = 0; fdraw(); }
-function unsavedOk() { return !take || take.saved || confirm("Дубль не сохранён. Выбросить его?"); }
+function fdrop() { if (take) { URL.revokeObjectURL(take.url); if (take.discard) tdbDel(take.id); } take = null; $("#fpv").removeAttribute("src"); try { $("#fpv").load(); } catch (e) {} $("#fdone").style.display = "none"; fpos = 0; fdraw(); }
+function unsavedOk() {
+  if (!take || take.saved) return true;
+  if (!confirm("Дубль не сохранён. Выбросить его?")) return false;
+  take.discard = true; return true;
+}
 function fopen(i) {
   if (i < 0 || i >= items.length || busyRec()) return;
   if (!unsavedOk()) return;
