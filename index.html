@@ -57,6 +57,7 @@ button.on { background:var(--acc); color:#000; }
 #frecover .r div { display:flex; gap:8px; margin-top:8px; }
 #frecover .r button { flex:1; padding:10px 6px; font-size:15px; background:rgba(255,255,255,.16); color:#fff; }
 #frecover .r button.s { background:var(--acc); color:#000; font-weight:700; }
+a.dl.done { opacity:.55; }
 a.dl { display:block; margin-top:8px; padding:14px 10px; border-radius:12px; background:var(--acc); color:#000; font-weight:800; font-size:17px; text-align:center; text-decoration:none; }
 .dlhint { font-size:13px; opacity:.8; margin-top:6px; line-height:1.35; }
 #modes button small { display:block; font-size:12px; opacity:.75; }
@@ -157,7 +158,7 @@ a.dl { display:block; margin-top:8px; padding:14px 10px; border-radius:12px; bac
 <script>
 (() => {
 const $ = s => document.querySelector(s);
-const VERSION = "28.11-front4";
+const VERSION = "28.11-front5";
 // always the newest page (Alex 16.10: the iPhone kept an old copy): compare with the published file, reload if it differs
 fetch("index.html?t=" + Date.now(), { cache: "no-store" }).then(r => r.text()).then(t => {
   const m = t.match(/const VERSION = "([^"]+)"/);
@@ -526,7 +527,8 @@ let fdragY = null, fdragP = 0, fdragged = false;
 const mic = { ctx: null, an: null, buf: null, raf: 0, lvl: 0, takePeak: 0, ok: false };
 function inFront() { return $("#cam").style.display === "block"; }
 function busyRec() { return !!(rec && rec.state !== "inactive"); }
-function fpausedNow() { return !!(rec && rec.state === "paused"); }
+let softPause = false;  // 28.11 front5: ⏸ stops the TEXT only, the recording runs on (see fpause)
+function fpausedNow() { return softPause && busyRec(); }
 const LINE = 0.22;  // the reading line: 22 % down the text band (close to the lens)
 function fdraw() { $("#froll").style.transform = "translateY(" + (-fpos + $("#fband").clientHeight * LINE) + "px)"; }
 function fmax() { return Math.max(0, $("#froll").scrollHeight - $("#fband").clientHeight * 0.3); }
@@ -678,10 +680,10 @@ function fmtMB(n) { return (n / 1048576).toFixed(n < 1e7 ? 1 : 0) + " МБ"; }
 async function tdbRecover() {
   const box = $("#frecover"); if (!box) return;
   let ts = [];
-  // unsaved takes + the ones downloaded in the last 24 h (a download can fail unnoticed: they stay one more day)
-  try { ts = (await tdbTakes()).filter(t => (!t.saved || Date.now() - (t.savedAt || 0) < 864e5) && (!take || t.id !== take.id) && !(busyRec() && t.id === TDB.id)); } catch (e) { box.innerHTML = ""; return; }
+  // unsaved takes + the ones downloaded in the last 7 days (front5: Safari cut big downloads, 128 came as 45 s of 2+ min)
+  try { ts = (await tdbTakes()).filter(t => (!t.saved || Date.now() - (t.savedAt || 0) < 7 * 864e5) && (!take || t.id !== take.id) && !(busyRec() && t.id === TDB.id)); } catch (e) { box.innerHTML = ""; return; }
   box.innerHTML = "";
-  for (const t of ts.sort((a, b) => b.id - a.id).slice(0, 5)) {
+  for (const t of ts.sort((a, b) => b.id - a.id).slice(0, 15)) {
     const d = new Date(t.id), z = n => String(n).padStart(2, "0");
     const r = document.createElement("div"); r.className = "r";
     r.innerHTML = (t.saved ? "✓ Скачан дубль <b></b> · снят в " : "⚠️ Не сохранён дубль <b></b> · снят в ") + z(d.getHours()) + ":" + z(d.getMinutes()) + " · <span>…</span><div><button class=\"s\">💾 Сохранить</button><button class=\"d\">🗑 Удалить</button></div>";
@@ -704,14 +706,34 @@ async function tdbRecover() {
 // into memory, a 4K take of a minute+ (300-500 MB) kills the tab. A big take is never shared: a real link he taps downloads
 // it from the phone's storage to «Файлы → Загрузки» (streamed, no memory spike); from Files: «Сохранить видео» / AirDrop.
 const BIG = () => (window.__tpBig || 40e6);
+// 28.11 front5 (Alex: «Safari качает какую-то часть, дальше ошибку»; 128 came as 45 s of a 2+ min take): one 500 MB-1.5 GB
+// download breaks half way and leaves a playable START of the file. A big take now goes in parts of ~90 MB (each a few
+// seconds); the Mac joins «…__p01of06.mp4…» back into one file (content-engine tools/join_parts.py) and checks the length.
+const PART = () => (window.__tpPart || 90e6);
 function dlLink(blob, name, box, onTap) {
   box.querySelectorAll("a.dl, .dlhint").forEach(x => x.remove());
-  const a = document.createElement("a"); a.className = "dl"; a.href = URL.createObjectURL(blob); a.download = name;
-  a.textContent = "⬇️ Скачать в Файлы · " + fmtMB(blob.size);
-  a.addEventListener("click", () => setTimeout(() => onTap && onTap(), 50));
+  const P = PART(), n = Math.max(1, Math.ceil(blob.size / P));
+  const dot = name.lastIndexOf("."), base = dot > 0 ? name.slice(0, dot) : name, ext = dot > 0 ? name.slice(dot) : ".mp4";
+  const z2 = k => String(k).padStart(2, "0"), tapped = new Set();
   const h = document.createElement("div"); h.className = "dlhint";
-  h.textContent = "Нажми ⬇️, потом «Загрузить». Видео ляжет в «Файлы → Загрузки»: открой его там → «Поделиться» → «Сохранить видео» (или AirDrop на Мак). Дубль остаётся и в памяти суфлёра.";
-  box.append(a, h);
+  h.textContent = n === 1
+    ? "Нажми ⬇️, потом «Загрузить». Видео ляжет в «Файлы → Загрузки»: AirDrop на Мак. Дубль остаётся в памяти суфлёра 7 дней."
+    : "Дубль большой, он скачивается частями (так Safari не обрывает). Нажимай части по очереди: «Загрузить» → дождись, пока докачается " +
+      "(⬇️ вверху Safari), потом следующую. Потом все " + n + " части из «Файлы → Загрузки» одним AirDrop на Мак: Мак сам склеит их в один " +
+      "ролик. Дубль остаётся в памяти суфлёра 7 дней.";
+  box.append(h);
+  for (let i = 0; i < n; i++) {
+    const part = n === 1 ? blob : blob.slice(i * P, Math.min(blob.size, (i + 1) * P), blob.type);
+    const a = document.createElement("a"); a.className = "dl"; a.href = URL.createObjectURL(part);
+    a.download = n === 1 ? name : base + "__p" + z2(i + 1) + "of" + z2(n) + ext;
+    const label = (n === 1 ? "Скачать в Файлы · " : "Часть " + (i + 1) + " из " + n + " · ") + fmtMB(part.size);
+    a.textContent = "⬇️ " + label;
+    a.addEventListener("click", () => {
+      tapped.add(i); a.textContent = "✓ " + label + " (нажата)"; a.classList.add("done");
+      if (tapped.size === n) setTimeout(() => onTap && onTap(), 50);
+    });
+    box.append(a);
+  }
 }
 async function shareFile(file, url) {  // true = saved / shared; the page never navigates away (that lost the take too)
   try {
@@ -747,38 +769,39 @@ async function frecStart() {
   const name = (m ? m[1] : (it ? it.id : "take")) + "_front_" + z(d.getHours()) + z(d.getMinutes()) + z(d.getSeconds()) + "." + (/mp4/.test(mt) ? "mp4" : "webm");
   TDB.id = Date.now(); TDB.n = 0; TDB.q = Promise.resolve(); TDB.ok = false; TDB.saved = 0;
   try {
-    for (const t of await tdbTakes()) if (t.saved && Date.now() - (t.savedAt || 0) > 864e5) await tdbDel(t.id);  // downloaded > 24 h ago
+    for (const t of await tdbTakes()) if (t.saved && Date.now() - (t.savedAt || 0) > 7 * 864e5) await tdbDel(t.id);  // downloaded > 7 days ago (front5: was 24 h)
     await tdbPut({ id: TDB.id, name, type: mt, tag: it ? it.tag : "", rid: it ? it.id : "", saved: false });
     TDB.ok = true;
   } catch (e) { TDB.ok = false; }
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
   rec.ondataavailable = ev => { if (ev.data && ev.data.size) tdbPush(ev.data); };
   rec.onstop = fsaved;
+  softPause = false;
   rec.start(1000); recT0 = Date.now(); recAcc = 0; mic.takePeak = 0;
   document.body.classList.add("frecording"); document.body.classList.remove("fpaused");
   $("#f-rec").textContent = "⏹"; $("#f-pause").textContent = "⏸";
   fclock(); clearInterval(recTimer); recTimer = setInterval(fclock, 250);
   fplay(true); wake();
 }
-function fpause(back) {  // ⏸ the recording and the text stop together; ▶︎ both go on, the file keeps everything before
-  if (!rec) return;
-  if (rec.state === "recording") {
-    try { rec.pause(); } catch (e) { hud("Пауза здесь не работает: ⏹ закончит дубль"); return; }
-    recAcc += Date.now() - recT0; fplay(false);
+function fpause(back) {
+  // 28.11 front5 (Alex: «голос и губы не совпадают»): MediaRecorder.pause/resume in Safari made the voice jump ahead of the
+  // lips by ~0.25 s after every pause (measured on his US takes). ⏸ now stops only the text: the recording runs on, the
+  // pause is cut out on the Mac like any silence. ▶︎ = the text goes on.
+  if (!busyRec()) return;
+  if (!softPause) {
+    softPause = true; fplay(false);
     if (back) fnudge(-90);
     document.body.classList.add("fpaused"); $("#f-pause").textContent = "▶︎";
-    hud(back ? "⏸ Пауза, текст назад на 2 строки" : "⏸ Пауза: снятое не сбросится"); fclock();
-  } else if (rec.state === "paused") {
-    micWake();
-    try { rec.resume(); } catch (e) { hud("Не продолжилось: " + e.message); return; }
-    recT0 = Date.now();
+    hud(back ? "⏸ Текст стоит, назад на 2 строки. Запись идёт, паузу вырежу" : "⏸ Текст стоит. Запись идёт, паузу вырежу сам"); fclock();
+  } else {
+    softPause = false; micWake();
     document.body.classList.remove("fpaused"); $("#f-pause").textContent = "⏸";
     fplay(true); fclock();
   }
 }
-function fback() { if (rec && rec.state === "recording") fpause(true); else fnudge(-90); }
+function fback() { if (busyRec() && !softPause) fpause(true); else fnudge(-90); }
 function frecStop() {
-  fplay(false); clearInterval(recTimer);
+  fplay(false); clearInterval(recTimer); softPause = false;
   if (rec && rec.state !== "inactive") { try { rec.requestData(); } catch (e) {} rec.stop(); }
   document.body.classList.remove("frecording", "fpaused"); $("#f-rec").textContent = "⏺"; $("#f-pause").textContent = "⏸";
 }
@@ -793,6 +816,10 @@ async function fsaved() {
   if (!blob.size) { $("#fdone").style.display = "none"; hud("Пустая запись, попробуй ещё раз"); return; }
   let meta = null;
   try { meta = (await tdbTakes()).find(t => t.id === id); } catch (e) {}
+  try {  // front5: a full phone storage makes the next take live in memory only
+    if (navigator.storage && navigator.storage.estimate) { const e = await navigator.storage.estimate();
+      if (e.quota && e.usage / e.quota > 0.8) hud("⚠️ Память суфлёра заполнена на " + Math.round(100 * e.usage / e.quota) + " %: скачай старые дубли и удали их 🗑"); }
+  } catch (e) {}
   const name = meta ? meta.name : "take_front." + (/mp4/.test(type) ? "mp4" : "webm");
   take = { id, file: new File([blob], name, { type }), url: URL.createObjectURL(blob), saved: false, disk: !!meta && TDB.ok };
   const s = stream ? stream.getVideoTracks()[0].getSettings() : {};
